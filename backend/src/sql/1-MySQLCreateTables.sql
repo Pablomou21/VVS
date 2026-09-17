@@ -1,0 +1,66 @@
+DROP TABLE IF EXISTS OrderTable;
+DROP TABLE IF EXISTS Session;
+DROP TABLE IF EXISTS Room;
+DROP TABLE IF EXISTS Movie;
+DROP TABLE IF EXISTS User;
+
+CREATE TABLE User (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    userName VARCHAR(60) COLLATE latin1_bin NOT NULL,
+    password VARCHAR(60) NOT NULL, 
+    firstName VARCHAR(60) NOT NULL,
+    lastName VARCHAR(60) NOT NULL, 
+    email VARCHAR(60) NOT NULL,
+    role TINYINT NOT NULL,
+    CONSTRAINT UserPK PRIMARY KEY (id),
+    CONSTRAINT UserNameUniqueKey UNIQUE (userName)
+) ENGINE = InnoDB;
+
+CREATE INDEX UserIndexByUserName ON User (userName);
+
+CREATE TABLE Movie (
+   id BIGINT NOT NULL AUTO_INCREMENT,
+   title VARCHAR(60) NOT NULL,
+   summary VARCHAR(2000) NOT NULL,
+   duration SMALLINT NOT NULL,
+   CONSTRAINT MoviePK PRIMARY KEY (id)
+) ENGINE = InnoDB;
+
+CREATE INDEX MovieIndexByTitle ON Movie (title);
+
+CREATE TABLE Room (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  name VARCHAR(60) NOT NULL,
+  capacity SMALLINT NOT NULL,
+  CONSTRAINT RoomPK PRIMARY KEY (id)
+) ENGINE = InnoDB;
+
+CREATE TABLE Session (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    movieId BIGINT NOT NULL,
+    roomId BIGINT NOT NULL,
+    date DATETIME NOT NULL,
+    price DECIMAL(11, 2) NOT NULL,
+    freeSeats SMALLINT NOT NULL,
+    version BIGINT NOT NULL,
+    CONSTRAINT SessionPK PRIMARY KEY (id),
+    CONSTRAINT SessionMovieIdFK FOREIGN KEY(movieId)
+        REFERENCES Movie (id),
+    CONSTRAINT SessionRoomIdFK FOREIGN KEY(roomId)
+        REFERENCES Room (id)
+) ENGINE = InnoDB;
+
+CREATE TABLE OrderTable (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    units SMALLINT NOT NULL,
+    sessionId BIGINT NOT NULL,
+    creditCardNum VARCHAR(16) NOT NULL,
+    date DATETIME NOT NULL,
+    delivered BOOLEAN NOT NULL,
+    userId BIGINT NOT NULL,
+    CONSTRAINT OrderPK PRIMARY KEY (id),
+    CONSTRAINT OrderSessionIdFK FOREIGN KEY(sessionId)
+        REFERENCES Session (id),
+    CONSTRAINT OrderUserIdFK FOREIGN KEY(userId)
+        REFERENCES User (id)
+) ENGINE = InnoDB;

@@ -1,0 +1,80 @@
+export default {
+
+    'project.app.Footer.text': 'PA Project - Area de Ingeniería Telemática - Universidad de A Coruña',
+    'project.app.Header.home': 'Inicio',
+    'project.app.Header.logout': 'Salir',
+    'project.shopping.header.orders': 'Compras',
+    'project.app.Home.welcome': '¡Contenido de la página principal de PA Project!',
+    
+    'project.common.ErrorDialog.title': 'Error',
+
+    'project.global.buttons.cancel': 'Cancelar',
+    'project.global.buttons.close': 'Cerrar',
+    'project.global.buttons.next': 'Siguiente',
+    'project.global.buttons.ok': 'OK',
+    'project.global.buttons.back': 'Anterior',
+    'project.global.buttons.save': 'Guardar',
+    'project.global.buttons.Deliver' : 'Entregar entradas', //poner aquí? fusionar con otro?
+    'project.global.exceptions.NetworkError': 'Fallo de comunicación',
+    'project.global.fields.date': 'Fecha',
+    'project.global.fields.email': 'Correo electrónico',
+    'project.global.fields.firstName': 'Nombre',
+    'project.global.fields.lastName': 'Apellidos',
+    'project.global.fields.name': 'Nombre',
+    'project.global.fields.password': 'Contraseña',
+    'project.global.fields.postalAddress': 'Dirección postal',
+    'project.global.fields.postalCode': 'Código postal',
+    'project.global.fields.userName': 'Usuario',
+    'project.global.fields.creditCardNum' :'Tarjeta bancaria',
+    'project.global.fields.no': 'No',
+    'project.global.fields.orderId' : 'Id de compra',
+    'project.global.validator.email': 'Introduzca una dirección de correo electrónico correcta',
+    'project.global.validator.passwordsDoNotMatch': 'Las contraseñas no coinciden',
+    'project.global.validator.required': 'Campo obligatorio',
+    'project.global.validator.number': 'Introduzca un número',
+
+    'project.users.ChangePassword.fields.confirmNewPassword': 'Confirmar contraseña nueva',
+    'project.users.ChangePassword.fields.newPassword': 'Contraseña nueva',
+    'project.users.ChangePassword.fields.oldPassword': 'Contraseña antigua',
+    'project.users.ChangePassword.title': 'Cambiar contraseña',
+    'project.users.Login.title': 'Autenticarse',
+    'project.users.SignUp.fields.confirmPassword': 'Confirmar contraseña',
+    'project.users.SignUp.title': 'Registrarse',
+    'project.users.UpdateProfile.title': 'Actualizar perfil',
+
+    'project.catalog.Movies.fields.billboard': 'Cartelera',
+
+    'project.catalog.MovieDetails.fields.summary': 'Resumen',
+    'project.catalog.MovieDetails.fields.duration': 'Duración',
+
+    'project.catalog.SessionDetails.fields.duration': 'Duración',
+    'project.catalog.SessionDetails.fields.price': 'Precio',
+    'project.catalog.SessionDetails.fields.date': 'Día',
+    'project.catalog.SessionDetails.fields.time': 'Hora',
+    'project.catalog.SessionDetails.fields.room': 'Sala',
+    'project.catalog.SessionDetails.fields.freeSeats': 'Localidades disponibles',
+
+    'project.shopping.BuyTicketsForm.title': 'Compra de entradas',
+    'project.shopping.BuyTicketsForm.fields.numTickets': 'Número de entradas',
+    'project.shopping.BuyTicketsForm.fields.creditCardNum': 'Tarjeta bancaria',
+    'project.shopping.BuyTicketsForm.buttons.buy': 'Comprar',
+    'project.shopping.BuyTicketsForm.purchaseId': 'Identificador de compra',
+    'project.shopping.BuyTicketsForm.validation.numTickets': 'Introduce un número de entradas entre 1 y 10',
+    'project.catalog.SessionDetails.noFreeSeats': 'No quedan localidades disponibles',
+
+    'project.shopping.PurchaseCompleted.purchaseOrderGenerated' : 'Compra generada con id',
+    'project.shopping.FindOrders.noOrders': 'No se encontraron compras',
+    'project.shopping.header.deliver' : 'Entregar entradas',
+    'project.shopping.DeliverForm.title' : 'Entregar entradas',
+    'project.shopping.DeliverForm.ticketsDelivered' : 'Las entradas han sido entregadas correctamente',
+
+    'project.global.fields.orderDate': 'Fecha compra',
+    'project.global.fields.id': 'ID compra',
+    'project.global.fields.title': 'Título',
+    'project.global.fields.tickets': 'Número de entradas',
+    'project.global.fields.totalPrice': 'Precio total',
+    'project.global.fields.sessionDate': 'Fecha sesión',
+    'project.global.fields.delivered': 'Entregadas',
+    'project.global.fields.yes': 'Sí'
+
+}
