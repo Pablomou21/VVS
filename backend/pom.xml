@@ -141,8 +141,8 @@
 
         <!-- JETM: dynamic, white-box, performance (non-functional) measurement -->
         <dependency>
-            <groupId>etm</groupId>
-            <artifactId>core</artifactId>
+            <groupId>fm.void.jetm</groupId>
+            <artifactId>jetm</artifactId>
             <version>${jetm.version}</version>
             <scope>test</scope>
         </dependency>
