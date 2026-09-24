@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 // Pruebas de Order con jqwik: cada @Property se ejecuta 1000 veces con datos aleatorios
 public class OrderTest {
@@ -33,5 +34,17 @@ public class OrderTest {
         BigDecimal expected = price.multiply(BigDecimal.valueOf(units));
 
         assertEquals(expected, order.getTotalPrice());
+    }
+
+
+    // Un pedido recién creado no está entregado (de 1 a 10 entradas)
+    @Property
+    public void newOrderIsNotDelivered(
+            @ForAll @IntRange(min = 1, max = 10) int units) {
+
+        Session session = createSession(BigDecimal.TEN);
+        Order order = new Order(units, session, "1234567890123456", LocalDateTime.now(), null);
+
+        assertFalse(order.isDelivered());
     }
 }
