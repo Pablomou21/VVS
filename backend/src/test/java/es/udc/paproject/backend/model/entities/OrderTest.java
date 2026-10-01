@@ -1,17 +1,19 @@
 package es.udc.paproject.backend.model.entities;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.BigRange;
 import net.jqwik.api.constraints.IntRange;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-
-// Pruebas de Order con jqwik: cada @Property se ejecuta 1000 veces con datos aleatorios
+// Pruebas de Order con jqwik: cada @Property se ejecuta hasta 1000 veces con datos aleatorios;
+// si el rango tiene menos de 1000 valores, jqwik los prueba todos (generación exhaustiva)
 public class OrderTest {
 
     // Crea una sesión con el precio dado (película, sala y fecha son de relleno)
@@ -46,5 +48,17 @@ public class OrderTest {
         Order order = new Order(units, session, "1234567890123456", LocalDateTime.now(), null);
 
         assertFalse(order.isDelivered());
+    }
+
+    // Un pedido con 0 o menos entradas es inválido (frontera 0, de -100 a 0)
+    @Property
+    public void orderWithNonPositiveUnitsIsRejected(
+            @ForAll @IntRange(min = -100, max = 0) int units) {
+
+        Session session = createSession(BigDecimal.TEN);
+
+        // Solo el constructor va dentro de la lambda: es lo que debe lanzar la excepción
+        assertThrows(IllegalArgumentException.class,
+                () -> new Order(units, session, "1234567890123456", LocalDateTime.now(), null));
     }
 }
