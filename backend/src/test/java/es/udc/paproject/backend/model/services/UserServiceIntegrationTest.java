@@ -14,16 +14,25 @@ import es.udc.paproject.backend.model.exceptions.DuplicateInstanceException;
 import es.udc.paproject.backend.model.exceptions.IncorrectLoginException;
 import es.udc.paproject.backend.model.exceptions.IncorrectPasswordException;
 import es.udc.paproject.backend.model.exceptions.InstanceNotFoundException;
+import jakarta.persistence.EntityManager;
 
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
 public class UserServiceIntegrationTest {
 
-    private static final String NON_EXISTENT_ID = "-1";
+    private static final Long NON_EXISTENT_ID = -1L;
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    private void flushAndClear() {
+        entityManager.flush();
+        entityManager.clear();
+    }
 
     private User createTestUser(String userName) {
         return new User(userName, "password", "Name", "LastName", userName + "@test.com");
@@ -38,6 +47,7 @@ public class UserServiceIntegrationTest {
     public void testSignUpAndLoginSuccess() throws Exception {
         User user = createTestUser("john");
         userService.signUp(user);
+        flushAndClear();
 
         User loggedUser = userService.login("john", "password");
 
@@ -85,6 +95,7 @@ public class UserServiceIntegrationTest {
     public void testLoginFromIdSuccess() throws Exception {
         User user = createTestUser("john");
         userService.signUp(user);
+        flushAndClear();
 
         User loggedUser = userService.loginFromId(user.getId());
 
@@ -95,7 +106,7 @@ public class UserServiceIntegrationTest {
     @Test
     public void testLoginFromIdNonExistent() {
         assertThrows(InstanceNotFoundException.class, () ->
-            userService.loginFromId(Long.parseLong(NON_EXISTENT_ID))
+            userService.loginFromId(NON_EXISTENT_ID)
         );
     }
 
@@ -106,6 +117,7 @@ public class UserServiceIntegrationTest {
         userService.signUp(user);
 
         userService.updateProfile(user.getId(), "NewName", "NewLastName", "newemail@test.com");
+        flushAndClear();
 
         User updatedUser = userService.loginFromId(user.getId());
 
@@ -116,7 +128,7 @@ public class UserServiceIntegrationTest {
     @Test
     public void testUpdateProfileNonExistentUser() {
         assertThrows(InstanceNotFoundException.class, () ->
-            userService.updateProfile(Long.parseLong(NON_EXISTENT_ID), "NewName", "NewLastName", "newemail@test.com")
+            userService.updateProfile(NON_EXISTENT_ID, "NewName", "NewLastName", "newemail@test.com")
         );
     }
 
@@ -131,6 +143,7 @@ public class UserServiceIntegrationTest {
         userService.signUp(user);
 
         userService.changePassword(user.getId(), "password", "newPassword");
+        flushAndClear();
 
         User loggedUser = userService.login("john", "newPassword");
 

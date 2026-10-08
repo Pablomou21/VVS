@@ -1,6 +1,7 @@
 package es.udc.paproject.backend.model.services;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -23,6 +24,7 @@ import es.udc.paproject.backend.model.entities.SessionDao;
 import es.udc.paproject.backend.model.exceptions.DayOutOfRangeException;
 import es.udc.paproject.backend.model.exceptions.InstanceNotFoundException;
 import es.udc.paproject.backend.model.exceptions.SessionAlreadyStartedException;
+import jakarta.persistence.EntityManager;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -43,10 +45,18 @@ public class MovieServiceIntegrationTest {
     @Autowired
     private SessionDao sessionDao;
 
+    @Autowired
+    private EntityManager entityManager;
+
     private Movie movie1;
     private Movie movie2;
     private Session sessionToday;
     private Session sessionFuture;
+
+    private void flushAndClear() {
+        entityManager.flush();
+        entityManager.clear();
+    }
 
     @BeforeEach
     public void setUp() {
@@ -59,13 +69,13 @@ public class MovieServiceIntegrationTest {
         Room room = new Room("Room 1", 50);
         roomDao.save(room);
 
-        // Sesión para hoy (dentro de unos minutos, para que no esté empezada)
-        sessionToday = new Session(movie1, room, LocalDateTime.now().plusMinutes(30), new BigDecimal("7.50"));
+        sessionToday = new Session(movie1, room, LocalDate.now().atTime(23, 59, 59), new BigDecimal("7.50"));
         sessionDao.save(sessionToday);
 
-        // Sesión para dentro de 6 días (frontera máxima válida)
-        sessionFuture = new Session(movie2, room, LocalDateTime.now().plusDays(6).plusHours(2), new BigDecimal("8.00"));
+        sessionFuture = new Session(movie2, room, LocalDate.now().plusDays(6).atTime(12, 0), new BigDecimal("8.00"));
         sessionDao.save(sessionFuture);
+
+        flushAndClear();
     }
 
     // -------------------------------------------------------------------------
@@ -152,11 +162,11 @@ public class MovieServiceIntegrationTest {
         );
     }
 
-    /* Valor frontera / Lógica de negocio: Comprobación de que buscar una sesión que ya ha comenzado lanza SessionAlreadyStartedException */
+    /* Valor frontera / Lógica de negocio: Comprobación de que buscar una sesión que comenzó hace solo 1 segundo lanza SessionAlreadyStartedException */
     @Test
     public void testFindSessionByIdAlreadyStarted() {
         Session pastSession = new Session(movie1, sessionToday.getRoom(),
-                LocalDateTime.now().minusHours(2), new BigDecimal("7.50"));
+                LocalDateTime.now().minusSeconds(1), new BigDecimal("7.50"));
         sessionDao.save(pastSession);
 
         assertThrows(SessionAlreadyStartedException.class, () ->

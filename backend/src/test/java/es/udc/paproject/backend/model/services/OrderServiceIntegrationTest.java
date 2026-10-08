@@ -29,6 +29,7 @@ import es.udc.paproject.backend.model.exceptions.CreditCardException;
 import es.udc.paproject.backend.model.exceptions.InstanceNotFoundException;
 import es.udc.paproject.backend.model.exceptions.NotEnoughTicketsException;
 import es.udc.paproject.backend.model.exceptions.SessionAlreadyStartedException;
+import jakarta.persistence.EntityManager;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -55,8 +56,16 @@ public class OrderServiceIntegrationTest {
     @Autowired
     private OrderDao orderDao;
 
+    @Autowired
+    private EntityManager entityManager;
+
     private User user;
     private Session session;
+
+    private void flushAndClear() {
+        entityManager.flush();
+        entityManager.clear();
+    }
 
     @BeforeEach
     public void setUp() {
@@ -91,6 +100,7 @@ public class OrderServiceIntegrationTest {
     @Test
     public void testBuyTicketsUpdatesFreeSeats() throws Exception {
         orderService.buyTickets(user.getId(), session.getId(), 2, "1234567812345678");
+        flushAndClear();
 
         Session updatedSession = sessionDao.findById(session.getId()).get();
         assertEquals(8, updatedSession.getFreeSeats());
@@ -112,11 +122,11 @@ public class OrderServiceIntegrationTest {
         );
     }
 
-    /* Valor frontera: Comprobación de que se lanza una excepción al intentar comprar entradas para una sesión que ya ha comenzado */
+    /* Valor frontera: Comprobación de que se lanza una excepción al comprar para una sesión que comenzó hace solo 1 segundo */
     @Test
     public void testBuyTicketsSessionAlreadyStarted() {
         Session pastSession = new Session(session.getMovie(), session.getRoom(),
-                LocalDateTime.now().minusHours(1), new BigDecimal("8.50"));
+                LocalDateTime.now().minusSeconds(1), new BigDecimal("8.50"));
         sessionDao.save(pastSession);
 
         assertThrows(SessionAlreadyStartedException.class, () ->
@@ -136,11 +146,13 @@ public class OrderServiceIntegrationTest {
     @Test
     public void testBuyTicketsExactCapacity() throws Exception {
         orderService.buyTickets(user.getId(), session.getId(), 10, "1234567812345678");
+        flushAndClear();
 
         assertEquals(0, sessionDao.findById(session.getId()).get().getFreeSeats());
     }
 
-    /* Valor frontera / Bug detectado: Comprobación de que se lanza una excepción al intentar comprar entradas con un número no positivo */
+    /* Partición equivalente (números negativos) / Bug detectado: Comprobación de que se lanza una excepción al intentar comprar entradas con un número no positivo.
+       La frontera real sería 0 (último inválido) y 1 (primer válido) */
     @Test
     public void testBuyTicketsWithNonPositiveTickets() {
         assertThrows(IllegalArgumentException.class, () ->
@@ -181,7 +193,8 @@ public class OrderServiceIntegrationTest {
         );
     }
 
-    /* Valor frontera: Comprobación de que se lanza una excepción al intentar recuperar las órdenes de un usuario con un número de página negativo */
+    /* Valor frontera: page = -1 (primer valor inválido). OJO: la excepción la lanza PageRequest.of de Spring, no el código del proyecto;
+       el servicio no valida page, y a nivel REST esta excepción acaba como error 500 (comprobarlo en las pruebas REST) */
     @Test
     public void testFindUserOrdersNegativePage() {
         assertThrows(IllegalArgumentException.class, () ->
@@ -199,17 +212,18 @@ public class OrderServiceIntegrationTest {
         Order order = orderService.buyTickets(user.getId(), session.getId(), 2, "1234567812345678");
 
         orderService.deliverTickets(order.getId(), "1234567812345678");
+        flushAndClear();
 
         assertTrue(orderDao.findById(order.getId()).get().isDelivered());
     }
 
-    /* Valor frontera / Datos inválidos: Comprobación de que se lanza una excepción al intentar entregar un ticket con una tarjeta de crédito incorrecta */
+    /* Valor frontera: Comprobación de que se lanza una excepción al entregar con una tarjeta que difiere de la de la compra en un solo dígito (el último) */
     @Test
     public void testDeliverTicketsIncorrectCreditCard() throws Exception {
         Order order = orderService.buyTickets(user.getId(), session.getId(), 2, "1234567812345678");
 
         assertThrows(CreditCardException.class, () ->
-            orderService.deliverTickets(order.getId(), "8765432187654321")
+            orderService.deliverTickets(order.getId(), "1234567812345679")
         );
     }
 
