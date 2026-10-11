@@ -79,16 +79,15 @@ public class OrderServiceIntegrationTest {
         Room room = new Room("Room 1", 10);
         roomDao.save(room);
 
-        // Sesión para mañá (garante que non empezou)
         session = new Session(movie, room, LocalDateTime.now().plusDays(1), new BigDecimal("8.50"));
         sessionDao.save(session);
     }
 
-    //-------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // Pruebas para buyTickets
-    //-------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
 
-    /* Partición equivalente: Comprobación de que la compra se procesa y la base de datos le asigna un ID no nulo */
+    /* Partición equivalente: Comprobación de que la compra se procesa y se le asigna un ID no nulo */
     @Test
     public void testBuyTicketsSuccess() throws Exception {
         Order order = orderService.buyTickets(user.getId(), session.getId(), 2, "1234567812345678");
@@ -106,7 +105,7 @@ public class OrderServiceIntegrationTest {
         assertEquals(8, updatedSession.getFreeSeats());
     }
 
-    /* Caso de error / ID Inexistente: Comprobación de que se lanza una excepción al intentar comprar entradas para un usuario no existente */
+    /* Partición equivalente / Caso de error: Comprobación de que se lanza InstanceNotFoundException al comprar para un usuario inexistente */
     @Test
     public void testBuyTicketsNonExistentUser() {
         assertThrows(InstanceNotFoundException.class, () ->
@@ -114,7 +113,7 @@ public class OrderServiceIntegrationTest {
         );
     }
 
-    /* Caso de error / ID Inexistente: Comprobación de que se lanza una excepción al intentar comprar entradas para una sesión no existente */
+    /* Partición equivalente / Caso de error: Comprobación de que se lanza InstanceNotFoundException al comprar para una sesión inexistente */
     @Test
     public void testBuyTicketsNonExistentSession() {
         assertThrows(InstanceNotFoundException.class, () ->
@@ -122,7 +121,7 @@ public class OrderServiceIntegrationTest {
         );
     }
 
-    /* Valor frontera: Comprobación de que se lanza una excepción al comprar para una sesión que comenzó hace solo 1 segundo */
+    /* Valor frontera / Caso de error: Comprobación de que se lanza SessionAlreadyStartedException al comprar para una sesión que comenzó hace solo 1 segundo */
     @Test
     public void testBuyTicketsSessionAlreadyStarted() {
         Session pastSession = new Session(session.getMovie(), session.getRoom(),
@@ -134,7 +133,7 @@ public class OrderServiceIntegrationTest {
         );
     }
 
-    /* Valor frontera: Comprobación de que se lanza una excepción al intentar comprar entradas cuando no hay suficientes disponibles */
+    /* Valor frontera / Caso de error: Comprobación de que se lanza NotEnoughTicketsException al intentar comprar más entradas de las disponibles */
     @Test
     public void testBuyTicketsNotEnoughTickets() {
         assertThrows(NotEnoughTicketsException.class, () ->
@@ -142,7 +141,7 @@ public class OrderServiceIntegrationTest {
         );
     }
 
-    /* Valor frontera: Comprobación de que se puede comprar el número exacto de entradas disponibles y se actualizan los asientos libres en la BD */
+    /* Valor frontera: Comprobación de que se puede comprar la capacidad exacta de la sala actualizando a 0 los asientos libres */
     @Test
     public void testBuyTicketsExactCapacity() throws Exception {
         orderService.buyTickets(user.getId(), session.getId(), 10, "1234567812345678");
@@ -151,8 +150,7 @@ public class OrderServiceIntegrationTest {
         assertEquals(0, sessionDao.findById(session.getId()).get().getFreeSeats());
     }
 
-    /* Partición equivalente (números negativos) / Bug detectado: Comprobación de que se lanza una excepción al intentar comprar entradas con un número no positivo.
-       La frontera real sería 0 (último inválido) y 1 (primer válido) */
+    /* Valor frontera / Bug detectado (Issue #1): Comprobación de que se lanza IllegalArgumentException al intentar comprar entradas con un número no positivo */
     @Test
     public void testBuyTicketsWithNonPositiveTickets() {
         assertThrows(IllegalArgumentException.class, () ->
@@ -164,7 +162,7 @@ public class OrderServiceIntegrationTest {
     // Pruebas para findUserOrders
     // -------------------------------------------------------------------------
 
-    /* Partición equivalente: Comprobación de que se pueden recuperar correctamente las órdenes de un usuario */
+    /* Partición equivalente: Comprobación de que se recuperan correctamente las órdenes de un usuario */
     @Test
     public void testFindUserOrdersSuccess() throws Exception {
         orderService.buyTickets(user.getId(), session.getId(), 2, "1234567812345678");
@@ -174,7 +172,7 @@ public class OrderServiceIntegrationTest {
         assertEquals(1, ordersBlock.getItems().size());
     }
 
-    /* Partición equivalente / Valor frontera: Comprobación de que se pueden recuperar correctamente las órdenes de un usuario con paginación */
+    /* Partición equivalente / Valor frontera: Comprobación de la paginación cuando existen más registros por consultar */
     @Test
     public void testFindUserOrdersPaginationHasMoreItems() throws Exception {
         orderService.buyTickets(user.getId(), session.getId(), 1, "1234567812345678");
@@ -185,7 +183,7 @@ public class OrderServiceIntegrationTest {
         assertTrue(ordersBlock.getExistMoreItems());
     }
 
-    /* Caso de error / ID Inexistente: Comprobación de que se lanza una excepción al intentar recuperar las órdenes de un usuario inexistente */
+    /* Partición equivalente / Caso de error: Comprobación de que se lanza InstanceNotFoundException al consultar órdenes de un usuario inexistente */
     @Test
     public void testFindUserOrdersNonExistentUser() {
         assertThrows(InstanceNotFoundException.class, () ->
@@ -193,8 +191,7 @@ public class OrderServiceIntegrationTest {
         );
     }
 
-    /* Valor frontera: page = -1 (primer valor inválido). OJO: la excepción la lanza PageRequest.of de Spring, no el código del proyecto;
-       el servicio no valida page, y a nivel REST esta excepción acaba como error 500 (comprobarlo en las pruebas REST) */
+    /* Valor frontera / Caso de error: Comprobación de que un número de página negativo (-1) lanza IllegalArgumentException */
     @Test
     public void testFindUserOrdersNegativePage() {
         assertThrows(IllegalArgumentException.class, () ->
@@ -206,7 +203,7 @@ public class OrderServiceIntegrationTest {
     // Pruebas para deliverTickets
     // -------------------------------------------------------------------------
 
-    /* Partición equivalente: Comprobación de que se puede entregar correctamente un ticket */
+    /* Partición equivalente: Comprobación de que se realiza la entrega correcta de un ticket */
     @Test
     public void testDeliverTicketsSuccess() throws Exception {
         Order order = orderService.buyTickets(user.getId(), session.getId(), 2, "1234567812345678");
@@ -217,7 +214,7 @@ public class OrderServiceIntegrationTest {
         assertTrue(orderDao.findById(order.getId()).get().isDelivered());
     }
 
-    /* Valor frontera: Comprobación de que se lanza una excepción al entregar con una tarjeta que difiere de la de la compra en un solo dígito (el último) */
+    /* Valor frontera / Caso de error: Comprobación de que se lanza CreditCardException al entregar con una tarjeta diferente en el último dígito */
     @Test
     public void testDeliverTicketsIncorrectCreditCard() throws Exception {
         Order order = orderService.buyTickets(user.getId(), session.getId(), 2, "1234567812345678");
@@ -227,7 +224,7 @@ public class OrderServiceIntegrationTest {
         );
     }
 
-    /* Valor frontera: Comprobación de que se lanza una excepción al intentar entregar un ticket que ya ha sido entregado */
+    /* Valor frontera / Caso de error: Comprobación de que se lanza AlreadyDeliveredException al intentar entregar un ticket ya entregado */
     @Test
     public void testDeliverTicketsAlreadyDelivered() throws Exception {
         Order order = orderService.buyTickets(user.getId(), session.getId(), 2, "1234567812345678");
@@ -238,7 +235,7 @@ public class OrderServiceIntegrationTest {
         );
     }
 
-    /* Caso de error / ID Inexistente: Comprobación de que se lanza una excepción al intentar entregar un ticket de un pedido que no existe */
+    /* Partición equivalente / Caso de error: Comprobación de que se lanza InstanceNotFoundException al intentar entregar un pedido inexistente */
     @Test
     public void testDeliverTicketsNonExistentOrder() {
         assertThrows(InstanceNotFoundException.class, () ->
