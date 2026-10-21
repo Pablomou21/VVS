@@ -1,5 +1,6 @@
 package es.udc.paproject.backend.model.entities;
 
+import net.jqwik.api.Example;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.BigRange;
@@ -42,6 +43,15 @@ public class SessionTest {
         assertEquals(price, session.getPrice());
     }
 
+    // Valor frontera: una sesión puede tener precio cero
+    @Example
+    public void constructorStoresZeroPrice() {
+        Session session = new Session(new Movie(), new Room("room", 100),
+                LocalDateTime.now().plusDays(1), BigDecimal.ZERO);
+
+        assertEquals(BigDecimal.ZERO, session.getPrice());
+    }
+
     // Dato aleatorio: las plazas libres empiezan siendo la capacidad de la sala
     @Property
     public void constructorInitializesFreeSeatsWithRoomCapacity(
@@ -51,6 +61,15 @@ public class SessionTest {
         Session session = new Session(new Movie(), room, LocalDateTime.now(), BigDecimal.TEN);
 
         assertEquals(capacity, session.getFreeSeats());
+    }
+
+    // Valor frontera: una sala sin plazas libres deja cero plazas en la sesión
+    @Example
+    public void constructorInitializesZeroFreeSeatsForZeroCapacity() {
+        Session session = new Session(new Movie(), new Room("room", 0),
+                LocalDateTime.now().plusDays(1), BigDecimal.TEN);
+
+        assertEquals(0, session.getFreeSeats());
     }
 
     // Datos aleatorios: fecha y nanosegundos distintos de cero
@@ -106,6 +125,15 @@ public class SessionTest {
         Session session = new Session();
         session.setFreeSeats(freeSeats);
         assertEquals(freeSeats, session.getFreeSeats());
+    }
+
+    // Valor frontera: el setter admite cero plazas libres
+    @Example
+    public void setterUpdatesFreeSeatsToZero() {
+        Session session = new Session();
+        session.setFreeSeats(0);
+
+        assertEquals(0, session.getFreeSeats());
     }
 
     // Dato aleatorio: el identificador se puede leer después de asignarlo

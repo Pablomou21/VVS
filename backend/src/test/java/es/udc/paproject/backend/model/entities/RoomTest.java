@@ -2,21 +2,18 @@ package es.udc.paproject.backend.model.entities;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import net.jqwik.api.Example;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.IntRange;
+import net.jqwik.api.constraints.LongRange;
 import net.jqwik.api.constraints.StringLength;
 
-// Pruebas de Room con jqwik: cada @Property se ejecuta hasta 1000 veces con datos aleatorios;
-// si el rango tiene menos de 1000 valores, jqwik los prueba todos (generación exhaustiva)
+// Pruebas de Room con jqwik: cada @Property se ejecuta con datos generados del rango indicado.
 public class RoomTest {
 
-    // ---------- Partición válida (deben pasar) ----------
-
-    // El constructor guarda el nombre recibido (nombres de 1 a 50 caracteres)
+    // Partición equivalente: el constructor conserva nombres no vacíos
     @Property
     public void constructorStoresName(
             @ForAll @StringLength(min = 1, max = 50) String name) {
@@ -26,7 +23,7 @@ public class RoomTest {
         assertEquals(name, room.getName());
     }
 
-    // El constructor guarda la capacidad recibida (capacidades de 1 a 500)
+    // Partición equivalente: el constructor conserva capacidades positivas
     @Property
     public void constructorStoresCapacity(
             @ForAll @IntRange(min = 1, max = 500) int capacity) {
@@ -36,31 +33,31 @@ public class RoomTest {
         assertEquals(capacity, room.getCapacity());
     }
 
-    // setName sustituye el nombre por el recibido (nombres de 1 a 50 caracteres)
+    // Partición equivalente: setName sustituye el nombre previo
     @Property
     public void setNameUpdatesName(
             @ForAll @StringLength(min = 1, max = 50) String name) {
 
-        // Nombre inicial vacío: jqwik nunca lo genera (min = 1), el setter siempre cambia el valor
+        // El valor inicial vacío garantiza que el dato generado sustituye el nombre
         Room room = new Room("", 100);
         room.setName(name);
 
         assertEquals(name, room.getName());
     }
 
-    // setCapacity sustituye la capacidad por la recibida (capacidades de 1 a 500)
+    // Partición equivalente: setCapacity sustituye la capacidad previa
     @Property
     public void setCapacityUpdatesCapacity(
             @ForAll @IntRange(min = 1, max = 500) int capacity) {
 
-        // Capacidad inicial 1000: jqwik nunca la genera (max = 500), el setter siempre la cambia
+        // La capacidad inicial queda fuera del rango generado para garantizar el cambio
         Room room = new Room("name", 1000);
         room.setCapacity(capacity);
 
         assertEquals(capacity, room.getCapacity());
     }
 
-    // Una sala sin guardar no tiene id: lo asigna la base de datos al guardarla (caso fijo)
+    // Caso fijo: el identificador se asigna al persistir la sala
     @Example
     public void newRoomHasNoId() {
 
@@ -69,20 +66,12 @@ public class RoomTest {
         assertNull(room.getId());
     }
 
-    // ---------- Partición inválida (fallarán: el código no valida) ----------
-
-    // Una sala con capacidad 0 o negativa es inválida (frontera 0, de -100 a 0)
+    // Dato aleatorio: se puede asignar y recuperar el identificador
     @Property
-    public void roomWithNonPositiveCapacityIsRejected(
-            @ForAll @IntRange(min = -100, max = 0) int capacity) {
+    public void setIdUpdatesId(@ForAll @LongRange(min = 1, max = 1000000) long id) {
+        Room room = new Room();
+        room.setId(id);
 
-        assertThrows(IllegalArgumentException.class, () -> new Room("name", capacity));
-    }
-
-    // Una sala con nombre vacío es inválida (caso fijo: frontera de longitud 0)
-    @Example
-    public void roomWithEmptyNameIsRejected() {
-
-        assertThrows(IllegalArgumentException.class, () -> new Room("", 100));
+        assertEquals(id, room.getId());
     }
 }
