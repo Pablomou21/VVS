@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
+import net.jqwik.api.Example;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.BigRange;
@@ -38,6 +39,51 @@ public class OrderTest {
         BigDecimal expected = price.multiply(BigDecimal.valueOf(units));
 
         assertEquals(expected, order.getTotalPrice());
+    }
+
+    // Valor frontera: el precio cero produce un total cero
+    @Example
+    public void zeroPriceProducesZeroTotal() {
+        Session session = createSession(new BigDecimal("0.00"));
+        Order order = new Order(5, session, "1234567890123456", LocalDateTime.now(), null);
+
+        assertEquals(new BigDecimal("0.00"), order.getTotalPrice());
+    }
+
+    // Valor frontera: una unidad es la cantidad mínima válida del servicio
+    @Example
+    public void totalPriceWithOneUnit() {
+        Session session = createSession(new BigDecimal("2.50"));
+        Order order = new Order(1, session, "1234567890123456", LocalDateTime.now(), null);
+
+        assertEquals(new BigDecimal("2.50"), order.getTotalPrice());
+    }
+
+    // Valor frontera: el constructor conserva la cantidad mínima válida
+    @Example
+    public void constructorStoresOneUnit() {
+        Order order = new Order(1, createSession(BigDecimal.TEN),
+                "1234567890123456", LocalDateTime.now(), null);
+
+        assertEquals(1, order.getUnits());
+    }
+
+    // Valor frontera: diez unidades es el máximo admitido por el DTO de compra
+    @Example
+    public void totalPriceWithTenUnits() {
+        Session session = createSession(new BigDecimal("2.50"));
+        Order order = new Order(10, session, "1234567890123456", LocalDateTime.now(), null);
+
+        assertEquals(new BigDecimal("25.00"), order.getTotalPrice());
+    }
+
+    // Valor frontera: el constructor conserva la cantidad máxima admitida por el DTO
+    @Example
+    public void constructorStoresTenUnits() {
+        Order order = new Order(10, createSession(BigDecimal.TEN),
+                "1234567890123456", LocalDateTime.now(), null);
+
+        assertEquals(10, order.getUnits());
     }
 
 
