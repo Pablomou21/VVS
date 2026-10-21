@@ -21,7 +21,12 @@ public class RoomDaoTest {
     @Autowired
     private RoomDao roomDao;
 
-    // guardar una habitacion y comprobar que se le asigna un ID
+    private boolean containsRoomId(Iterable<Room> rooms, Long id) {
+        return StreamSupport.stream(rooms.spliterator(), false)
+                .anyMatch(room -> id.equals(room.getId()));
+    }
+
+    // Partición equivalente: guardar una habitación válida debe asignarle un ID
     @Test
     public void shouldSaveRoomAndGenerateId() {
         Room room = roomDao.save(new Room("Room A", 50));
@@ -29,59 +34,77 @@ public class RoomDaoTest {
         assertNotNull(room.getId(), "The database should assign an ID when saving");
     }
 
-    // buscar una habitacion por ID y comprobar que se encuentra
+    // Partición equivalente: buscar por el ID de una habitación guardada
     @Test
     public void shouldFindRoomById() {
         Room savedRoom = roomDao.save(new Room("Room B", 30));
-        
-        // Fix warning: Ensure ID is not null before using it
         Long id = Objects.requireNonNull(savedRoom.getId());
 
         Optional<Room> foundRoom = roomDao.findById(id);
 
         assertTrue(foundRoom.isPresent());
-        assertEquals("Room B", foundRoom.get().getName());
-        assertEquals(30, foundRoom.get().getCapacity());
     }
 
-    // listar todas las habitaciones 
+    // Partición equivalente: recuperar el nombre de una habitación guardada
     @Test
-    public void shouldListAllRooms() {
-        Room room1 = roomDao.save(new Room("Room 1", 20));
-        Room room2 = roomDao.save(new Room("Room 2", 40));
+    public void shouldFindRoomByIdWithName() {
+        Room savedRoom = roomDao.save(new Room("Room B", 30));
+        Long id = Objects.requireNonNull(savedRoom.getId());
 
-        // Fix warning: Ensure IDs are not null
+        assertEquals("Room B", roomDao.findById(id).orElseThrow().getName());
+    }
+
+    // Partición equivalente: recuperar la capacidad de una habitación guardada
+    @Test
+    public void shouldFindRoomByIdWithCapacity() {
+        Room savedRoom = roomDao.save(new Room("Room B", 30));
+        Long id = Objects.requireNonNull(savedRoom.getId());
+
+        assertEquals(30, roomDao.findById(id).orElseThrow().getCapacity());
+    }
+
+    // Partición equivalente: incluir una habitación guardada en el listado
+    @Test
+    public void shouldListFirstRoom() {
+        Room room1 = roomDao.save(new Room("Room 1", 20));
         Long id1 = Objects.requireNonNull(room1.getId());
+
+        assertTrue(containsRoomId(roomDao.findAll(), id1));
+    }
+
+    // Partición equivalente: incluir otra habitación guardada en el listado
+    @Test
+    public void shouldListSecondRoom() {
+        roomDao.save(new Room("Room 1", 20));
+        Room room2 = roomDao.save(new Room("Room 2", 40));
         Long id2 = Objects.requireNonNull(room2.getId());
 
-        Iterable<Room> allRooms = roomDao.findAll();
-
-        boolean containsRoom1 = StreamSupport.stream(allRooms.spliterator(), false)
-                .anyMatch(r -> id1.equals(r.getId()));
-        boolean containsRoom2 = StreamSupport.stream(allRooms.spliterator(), false)
-                .anyMatch(r -> id2.equals(r.getId()));
-
-        assertTrue(containsRoom1);
-        assertTrue(containsRoom2);
+        assertTrue(containsRoomId(roomDao.findAll(), id2));
     }
 
-    // actualizar una habitacion 
+    // Partición equivalente: persistir el nombre actualizado
     @Test
-    public void shouldUpdateRoomData() {
+    public void shouldUpdateRoomName() {
         Room room = roomDao.save(new Room("Original", 100));
-        
         Long id = Objects.requireNonNull(room.getId());
-
         room.setName("Modified");
+        roomDao.save(room);
+
+        assertEquals("Modified", roomDao.findById(id).orElseThrow().getName());
+    }
+
+    // Partición equivalente: persistir la capacidad actualizada
+    @Test
+    public void shouldUpdateRoomCapacity() {
+        Room room = roomDao.save(new Room("Original", 100));
+        Long id = Objects.requireNonNull(room.getId());
         room.setCapacity(150);
         roomDao.save(room);
 
-        Room updatedRoom = roomDao.findById(id).orElseThrow();
-        assertEquals("Modified", updatedRoom.getName());
-        assertEquals(150, updatedRoom.getCapacity());
+        assertEquals(150, roomDao.findById(id).orElseThrow().getCapacity());
     }
 
-    // borrar una habitacion y comprobar que ya no se encuentra
+    // Partición equivalente: eliminar una habitación guardada
     @Test
     public void shouldDeleteRoomById() {
         Room room = roomDao.save(new Room("To delete", 10));

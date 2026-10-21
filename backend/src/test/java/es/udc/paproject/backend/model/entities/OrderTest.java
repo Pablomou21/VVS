@@ -24,7 +24,7 @@ public class OrderTest {
         return new Session(new Movie(), new Room(), tomorrow, price);
     }
 
-    // El precio total es precio x unidades (precio 0-100, de 1 a 10 entradas)
+    // Datos aleatorios: precio entre 0 y 100 y unidades entre 1 y 10
     @Property
     public void totalPriceIsPriceTimesUnits(
             @ForAll @BigRange(min = "0", max = "100") BigDecimal price,
@@ -41,7 +41,7 @@ public class OrderTest {
     }
 
 
-    // Un pedido recién creado no está entregado (de 1 a 10 entradas)
+    // Dato aleatorio: unidades entre 1 y 10
     @Property
     public void newOrderIsNotDelivered(
             @ForAll @IntRange(min = 1, max = 10) int units) {
@@ -52,7 +52,7 @@ public class OrderTest {
         assertFalse(order.isDelivered());
     }
 
-    // Un pedido con 0 o menos entradas es inválido (frontera 0, de -100 a 0)
+    // Valores frontera: unidades entre -100 y 0, incluido el límite inválido 0
     @Property
     public void orderWithNonPositiveUnitsIsRejected(
             @ForAll @IntRange(min = -100, max = 0) int units) {
@@ -64,7 +64,7 @@ public class OrderTest {
                 () -> new Order(units, session, "1234567890123456", LocalDateTime.now(), null));
     }
 
-    // El constructor guarda la fecha sin nanosegundos (cualquier fecha, con nanosegundos)
+    // Dato aleatorio: fechas con precisión de nanosegundos
     @Property
     public void constructorRemovesNanosFromDate(
             @ForAll @Precision(value = ChronoUnit.NANOS) LocalDateTime date) {
