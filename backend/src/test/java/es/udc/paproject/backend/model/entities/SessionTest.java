@@ -16,25 +16,33 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 // pruebas de Session con jqwik: cada @Property se ejecuta 1000 veces con datos aleatorios
 public class SessionTest {
 
-    // la sesión conserva la película, la sala y el precio recibidos
+    // Dato aleatorio: la sesión conserva la película recibida
     @Property
-    public void constructorStoresSessionData(
-            @ForAll @StringLength(min = 1, max = 50) String movieTitle,
-            @ForAll @IntRange(min = 1, max = 500) int capacity,
-            @ForAll @BigRange(min = "0", max = "100") BigDecimal price,
-            @ForAll @IntRange(min = 1, max = 365) int days) {
-
+    public void constructorStoresMovie(
+            @ForAll @StringLength(min = 1, max = 50) String movieTitle) {
         Movie movie = new Movie(movieTitle, "summary", (short) 120);
-        Room room = new Room("room", capacity);
-        LocalDateTime date = LocalDateTime.of(2026, 1, 1, 12, 30);
-        Session session = new Session(movie, room, date.plusDays(days), price);
-
+        Session session = new Session(movie, new Room("room", 100),
+                LocalDateTime.now().plusDays(1), BigDecimal.TEN);
         assertSame(movie, session.getMovie());
+    }
+
+    // Dato aleatorio: la sesión conserva la sala recibida
+    @Property
+    public void constructorStoresRoom(@ForAll @IntRange(min = 1, max = 500) int capacity) {
+        Room room = new Room("room", capacity);
+        Session session = new Session(new Movie(), room, LocalDateTime.now().plusDays(1), BigDecimal.TEN);
         assertSame(room, session.getRoom());
+    }
+
+    // Dato aleatorio: la sesión conserva el precio recibido
+    @Property
+    public void constructorStoresPrice(@ForAll @BigRange(min = "0", max = "100") BigDecimal price) {
+        Session session = new Session(new Movie(), new Room("room", 100),
+                LocalDateTime.now().plusDays(1), price);
         assertEquals(price, session.getPrice());
     }
 
-    // las plazas libres empiezan siendo la capacidad completa de la sala
+    // Dato aleatorio: las plazas libres empiezan siendo la capacidad de la sala
     @Property
     public void constructorInitializesFreeSeatsWithRoomCapacity(
             @ForAll @IntRange(min = 1, max = 500) int capacity) {
@@ -45,7 +53,7 @@ public class SessionTest {
         assertEquals(capacity, session.getFreeSeats());
     }
 
-    // la fecha de la sesión se guarda sin nanosegundos
+    // Datos aleatorios: fecha y nanosegundos distintos de cero
     @Property
     public void constructorRemovesNanosecondsFromDate(
             @ForAll @IntRange(min = 1, max = 365) int days,
@@ -57,45 +65,62 @@ public class SessionTest {
         assertEquals(date.withNano(0), session.getDate());
     }
 
-    // los setters permiten actualizar los datos mutables de la sesión
+    // Dato aleatorio: los setters actualizan la película
     @Property
-    public void settersUpdateSessionData(
-            @ForAll @IntRange(min = 1, max = 500) int initialCapacity,
-            @ForAll @IntRange(min = 1, max = 500) int updatedFreeSeats,
-            @ForAll @BigRange(min = "0", max = "100") BigDecimal updatedPrice,
-            @ForAll @IntRange(min = 1, max = 365) int days) {
-
-        Session session = new Session(new Movie(), new Room("room", initialCapacity),
-                LocalDateTime.now(), BigDecimal.ONE);
-                
-        Movie movie = new Movie("updated movie", "updated summary", (short) 90);
-        Room room = new Room("updated room", 200);
-        LocalDateTime date = LocalDateTime.of(2026, 6, 1, 20, 0).plusDays(days);
-
+    public void setterUpdatesMovie(@ForAll @StringLength(min = 1, max = 50) String movieTitle) {
+        Movie movie = new Movie(movieTitle, "updated summary", (short) 90);
+        Session session = new Session();
         session.setMovie(movie);
-        session.setRoom(room);
-        session.setDate(date);
-        session.setPrice(updatedPrice);
-        session.setFreeSeats(updatedFreeSeats);
-
         assertSame(movie, session.getMovie());
-        assertSame(room, session.getRoom());
-        assertEquals(date, session.getDate());
-        assertEquals(updatedPrice, session.getPrice());
-        assertEquals(updatedFreeSeats, session.getFreeSeats());
     }
 
-    // los identificadores y la versión se pueden leer después de asignarlos
+    // Dato aleatorio: los setters actualizan la sala
     @Property
-    public void settersUpdateIdAndVersion(
-            @ForAll @LongRange(min = 1, max = 1000000) long id,
-            @ForAll @LongRange(min = 0, max = 1000000) long version) {
+    public void setterUpdatesRoom(@ForAll @IntRange(min = 1, max = 500) int capacity) {
+        Room room = new Room("updated room", capacity);
+        Session session = new Session();
+        session.setRoom(room);
+        assertSame(room, session.getRoom());
+    }
 
+    // Dato aleatorio: los setters actualizan la fecha
+    @Property
+    public void setterUpdatesDate(@ForAll @IntRange(min = 1, max = 365) int days) {
+        LocalDateTime date = LocalDateTime.of(2026, 6, 1, 20, 0).plusDays(days);
+        Session session = new Session();
+        session.setDate(date);
+        assertEquals(date, session.getDate());
+    }
+
+    // Dato aleatorio: los setters actualizan el precio
+    @Property
+    public void setterUpdatesPrice(@ForAll @BigRange(min = "0", max = "100") BigDecimal price) {
+        Session session = new Session();
+        session.setPrice(price);
+        assertEquals(price, session.getPrice());
+    }
+
+    // Dato aleatorio: los setters actualizan las plazas libres
+    @Property
+    public void setterUpdatesFreeSeats(@ForAll @IntRange(min = 1, max = 500) int freeSeats) {
+        Session session = new Session();
+        session.setFreeSeats(freeSeats);
+        assertEquals(freeSeats, session.getFreeSeats());
+    }
+
+    // Dato aleatorio: el identificador se puede leer después de asignarlo
+    @Property
+    public void setterUpdatesId(@ForAll @LongRange(min = 1, max = 1000000) long id) {
         Session session = new Session();
         session.setId(id);
-        session.setVersion(version);
-
         assertEquals(id, session.getId());
+    }
+
+    // Dato aleatorio: la versión se puede leer después de asignarla
+    @Property
+    public void setterUpdatesVersion(@ForAll @LongRange(min = 0, max = 1000000) long version) {
+        Session session = new Session();
+        session.setVersion(version);
         assertEquals(version, session.getVersion());
     }
 }
