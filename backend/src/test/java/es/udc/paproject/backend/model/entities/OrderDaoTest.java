@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -23,10 +23,9 @@ import org.springframework.data.domain.Slice;
 import org.springframework.test.context.ActiveProfiles;
 
 import net.jqwik.api.Arbitraries;
-import net.jqwik.time.api.DateTimes;
 
 // Pruebas de integración de OrderDao con la base de datos de test (MySQL).
-// Cada @Test se ejecuta una vez con datos aleatorios generados con jqwik (Arbitraries...sample()).
+// Los tests preparan datos en MySQL; algunos casos generan cantidades y tarjetas con jqwik.
 // @DataJpaTest deshace la transacción al acabar cada test: la base de datos queda limpia.
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -143,14 +142,18 @@ public class OrderDaoTest {
     @Test
     public void findByUserIdReturnsAllUserOrders() {
         int numOrders = Arbitraries.integers().between(1, 10).sample();
+        List<Long> expectedIds = new ArrayList<>();
+        LocalDateTime firstDate = LocalDateTime.of(2032, 1, 1, 10, 0);
 
         for (int i = 0; i < numOrders; i++) {
-            createOrder(user);
+            Order order = createOrder(user, 1, "1234567890123456", firstDate.plusMinutes(i));
+            expectedIds.add(0, order.getId());
         }
         flushAndClear();
         Slice<Order> orders = orderDao.findByUserIdOrderByDateDesc(user.getId(), PageRequest.of(0, PAGE_SIZE));
+        List<Long> foundIds = orders.stream().map(Order::getId).toList();
 
-        assertEquals(numOrders, orders.getContent().size(), "numOrders = " + numOrders);
+        assertEquals(expectedIds, foundIds, "numOrders = " + numOrders);
     }
 
     // La búsqueda por usuario no devuelve pedidos de otros usuarios
@@ -158,33 +161,30 @@ public class OrderDaoTest {
     public void findByUserIdExcludesOtherUsersOrders() {
         User otherUser = createUser("otherUser");
 
-        createOrder(user);
+        Order userOrder = createOrder(user);
         createOrder(otherUser);
         flushAndClear();
         Slice<Order> orders = orderDao.findByUserIdOrderByDateDesc(user.getId(), PageRequest.of(0, PAGE_SIZE));
+        List<Long> foundIds = orders.stream().map(Order::getId).toList();
 
-        assertTrue(orders.stream().allMatch(o -> o.getUser().getId().equals(user.getId())));
+        assertEquals(List.of(userOrder.getId()), foundIds);
     }
 
-    // La búsqueda por usuario devuelve sus pedidos ordenados de la fecha más reciente a la más antigua
-    // (de 2 a 10 pedidos con fechas aleatorias y distintas entre 2020 y 2030)
+    // Partición válida: los pedidos aparecen de la fecha más reciente a la más antigua
     @Test
     public void findByUserIdSortsByDateDesc() {
-        List<LocalDateTime> dates = DateTimes.dateTimes()
-                .atTheEarliest(LocalDateTime.of(2020, 1, 1, 0, 0))
-                .atTheLatest(LocalDateTime.of(2030, 12, 31, 23, 59))
-                .list().ofMinSize(2).ofMaxSize(10).uniqueElements()
-                .sample();
-
-        for (LocalDateTime date : dates) {
-            createOrder(user, 1, "1234567890123456", date);
-        }
+        LocalDateTime oldestDate = LocalDateTime.of(2030, 1, 1, 10, 0);
+        LocalDateTime middleDate = oldestDate.plusHours(1);
+        LocalDateTime newestDate = oldestDate.plusHours(2);
+        Order oldestOrder = createOrder(user, 1, "1234567890123456", oldestDate);
+        Order newestOrder = createOrder(user, 1, "1234567890123456", newestDate);
+        Order middleOrder = createOrder(user, 1, "1234567890123456", middleDate);
         flushAndClear();
         Slice<Order> orders = orderDao.findByUserIdOrderByDateDesc(user.getId(), PageRequest.of(0, PAGE_SIZE));
-        List<LocalDateTime> expectedDates = dates.stream().sorted(Comparator.reverseOrder()).toList();
-        List<LocalDateTime> foundDates = orders.stream().map(o -> o.getDate()).toList();
+        List<Long> expectedIds = List.of(newestOrder.getId(), middleOrder.getId(), oldestOrder.getId());
+        List<Long> foundIds = orders.stream().map(Order::getId).toList();
 
-        assertEquals(expectedDates, foundDates, "dates = " + dates);
+        assertEquals(expectedIds, foundIds);
     }
 
     // La búsqueda de un usuario sin pedidos devuelve un resultado vacío (frontera: 0 pedidos)
@@ -193,6 +193,20 @@ public class OrderDaoTest {
         Slice<Order> orders = orderDao.findByUserIdOrderByDateDesc(user.getId(), PageRequest.of(0, PAGE_SIZE));
 
         assertTrue(orders.isEmpty());
+    }
+
+    // Frontera de paginación: la segunda página contiene el pedido que sigue a los dos primeros
+    @Test
+    public void findByUserIdReturnsSecondPage() {
+        LocalDateTime firstDate = LocalDateTime.of(2031, 1, 1, 10, 0);
+        createOrder(user, 1, "1234567890123456", firstDate.plusHours(2));
+        createOrder(user, 1, "1234567890123456", firstDate.plusHours(1));
+        Order secondPageOrder = createOrder(user, 1, "1234567890123456", firstDate);
+        flushAndClear();
+
+        Slice<Order> orders = orderDao.findByUserIdOrderByDateDesc(user.getId(), PageRequest.of(1, 2));
+
+        assertEquals(List.of(secondPageOrder.getId()), orders.stream().map(Order::getId).toList());
     }
 
     // Con exactamente PAGE_SIZE pedidos caben todos en la primera página y no hay siguiente (frontera: 20 pedidos)
