@@ -43,7 +43,7 @@
         <jetm.version>1.2.3</jetm.version>
         <checkstyle.plugin.version>3.6.0</checkstyle.plugin.version>
         <spotbugs.plugin.version>4.8.6.6</spotbugs.plugin.version>
-        <jacoco.plugin.version>0.8.12</jacoco.plugin.version>
+        <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
         <pitest.plugin.version>1.17.4</pitest.plugin.version>
         <pitest.junit5.version>1.2.1</pitest.junit5.version>
 
@@ -277,6 +277,11 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${jacoco.plugin.version}</version>
+                <configuration>
+                    <destFile>target/jacoco.exec</destFile>
+                    <dataFile>target/jacoco.exec</dataFile>
+                    <append>false</append>
+                </configuration>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
