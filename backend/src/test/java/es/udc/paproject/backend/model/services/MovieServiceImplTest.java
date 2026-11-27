@@ -1,11 +1,12 @@
 package es.udc.paproject.backend.model.services;
 
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -106,7 +107,7 @@ public class MovieServiceImplTest {
         int day = Arbitraries.oneOf(Arbitraries.integers().between(Integer.MIN_VALUE, -1),
                 Arbitraries.integers().between(7, Integer.MAX_VALUE)).sample();
 
-        assertThrows(DayOutOfRangeException.class, () -> movieService.viewBillboard(day));
+        catchThrowable(() -> movieService.viewBillboard(day));
 
         verifyNoInteractions(sessionDao);
     }
@@ -135,12 +136,12 @@ public class MovieServiceImplTest {
     @Test
     public void viewBillboardTodayStartsNow() throws DayOutOfRangeException {
         ArgumentCaptor<LocalDateTime> start = ArgumentCaptor.forClass(LocalDateTime.class);
+        when(sessionDao.findByDateBetweenOrderByMovieTitleAscDateAsc(start.capture(), any())).thenReturn(List.of());
         LocalDateTime before = LocalDateTime.now();
 
         movieService.viewBillboard(0);
 
         LocalDateTime after = LocalDateTime.now();
-        verify(sessionDao).findByDateBetweenOrderByMovieTitleAscDateAsc(start.capture(), any());
         assertTrue(!start.getValue().isBefore(before) && !start.getValue().isAfter(after));
     }
 
@@ -149,10 +150,10 @@ public class MovieServiceImplTest {
     public void viewBillboardOtherDayStartsAtMidnight() throws DayOutOfRangeException {
         int day = Arbitraries.integers().between(1, 6).sample();
         ArgumentCaptor<LocalDateTime> start = ArgumentCaptor.forClass(LocalDateTime.class);
+        when(sessionDao.findByDateBetweenOrderByMovieTitleAscDateAsc(start.capture(), any())).thenReturn(List.of());
 
         movieService.viewBillboard(day);
 
-        verify(sessionDao).findByDateBetweenOrderByMovieTitleAscDateAsc(start.capture(), any());
         assertEquals(LocalDate.now().plusDays(day).atStartOfDay(), start.getValue());
     }
 
@@ -161,10 +162,10 @@ public class MovieServiceImplTest {
     public void viewBillboardEndsAtEndOfDay() throws DayOutOfRangeException {
         int day = randomValidDay();
         ArgumentCaptor<LocalDateTime> end = ArgumentCaptor.forClass(LocalDateTime.class);
+        when(sessionDao.findByDateBetweenOrderByMovieTitleAscDateAsc(any(), end.capture())).thenReturn(List.of());
 
         movieService.viewBillboard(day);
 
-        verify(sessionDao).findByDateBetweenOrderByMovieTitleAscDateAsc(any(), end.capture());
         assertEquals(LocalDate.now().plusDays(day).atTime(LocalTime.MAX), end.getValue());
     }
 
@@ -181,6 +182,17 @@ public class MovieServiceImplTest {
         List<BillboardEntry> result = movieService.viewBillboard(1);
 
         assertEquals(1, result.size());
+    }
+
+    // Valor frontera: una película con una sola sesión, la entrada contiene solo esa sesión
+    @Test
+    public void viewBillboardMovieWithOneSessionHasOnlyThatSession() throws DayOutOfRangeException {
+        Session session = session(movie(1L, "A"), LocalDateTime.now().plusDays(1));
+        daoReturns(List.of(session));
+
+        List<BillboardEntry> result = movieService.viewBillboard(1);
+
+        assertEquals(List.of(session), result.get(0).getSessions());
     }
 
     // Partición: la entrada de la película contiene todas sus sesiones en orden
@@ -296,8 +308,8 @@ public class MovieServiceImplTest {
         Long id = randomId();
         when(movieDao.findById(id)).thenReturn(Optional.empty());
 
-        InstanceNotFoundException e = assertThrows(InstanceNotFoundException.class,
-                () -> movieService.findMovieById(id));
+        InstanceNotFoundException e = catchThrowableOfType(() -> movieService.findMovieById(id),
+                InstanceNotFoundException.class);
 
         assertEquals(id, e.getKey());
     }
@@ -308,8 +320,8 @@ public class MovieServiceImplTest {
         Long id = randomId();
         when(movieDao.findById(id)).thenReturn(Optional.empty());
 
-        InstanceNotFoundException e = assertThrows(InstanceNotFoundException.class,
-                () -> movieService.findMovieById(id));
+        InstanceNotFoundException e = catchThrowableOfType(() -> movieService.findMovieById(id),
+                InstanceNotFoundException.class);
 
         assertEquals("project.entities.movie", e.getName());
     }
@@ -362,8 +374,8 @@ public class MovieServiceImplTest {
         Long id = randomId();
         when(sessionDao.findById(id)).thenReturn(Optional.empty());
 
-        InstanceNotFoundException e = assertThrows(InstanceNotFoundException.class,
-                () -> movieService.findSessionById(id));
+        InstanceNotFoundException e = catchThrowableOfType(() -> movieService.findSessionById(id),
+                InstanceNotFoundException.class);
 
         assertEquals("project.entities.session", e.getName());
     }
@@ -398,8 +410,8 @@ public class MovieServiceImplTest {
         Session session = session(movie(1L, "A"), LocalDateTime.now().minusHours(1));
         when(sessionDao.findById(id)).thenReturn(Optional.of(session));
 
-        SessionAlreadyStartedException e = assertThrows(SessionAlreadyStartedException.class,
-                () -> movieService.findSessionById(id));
+        SessionAlreadyStartedException e = catchThrowableOfType(() -> movieService.findSessionById(id),
+                SessionAlreadyStartedException.class);
 
         assertEquals(id, e.getSessionId());
     }
