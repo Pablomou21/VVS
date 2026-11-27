@@ -40,12 +40,17 @@ public class OrderServiceIntegrationTest {
 
     private static final Long NON_EXISTENT_ID = -1L;
 
+    /* Criterio común de los umbrales de servicio contra la BD real: 100 ms es el límite para que el usuario perciba
+     * una respuesta como instantánea (J. Nielsen, "Response Times: The 3 Important Limits"). Se reserva la mitad
+     * (50 ms) para la operación de servicio con la BD y el resto para la red, la capa REST y el frontend. */
+
     /* Requisito no funcional: una compra de entradas debe completarse de media en menos de 50 ms contra la BD real
-     * (incluye la lectura del usuario y de la sesión, la actualización de las plazas libres y la inserción de la compra) */
+     * (incluye la lectura del usuario y de la sesión, la actualización de las plazas libres y la inserción de la compra).
+     * Medición de referencia en desarrollo: ~5 ms de media */
     private static final double BUY_TICKETS_THRESHOLD_MS = 50.0;
 
     /* Requisito no funcional: la consulta de una página del historial de compras debe responder de media en menos de 50 ms
-     * contra la BD real */
+     * contra la BD real. Medición de referencia en desarrollo: ~4-5 ms de media */
     private static final double FIND_USER_ORDERS_THRESHOLD_MS = 50.0;
 
     /* Capacidad de la sala de las pruebas de rendimiento: suficiente para el calentamiento y todas las compras medidas */
