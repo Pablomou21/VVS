@@ -1,5 +1,7 @@
 package es.udc.paproject.backend.model.services;
 
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -89,11 +91,11 @@ public class OrderServiceImplTest {
         return user;
     }
 
-    // Compra válida de numTickets y devuelve el pedido que se pasó a save
+    // Compra válida de numTickets y devuelve el pedido que el servicio pasa a save
     private Order buyAndCaptureOrder(int numTickets) throws Exception {
         ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        when(orderDao.save(captor.capture())).thenReturn(new Order());
         orderService.buyTickets(1L, 2L, numTickets, CARD);
-        verify(orderDao).save(captor.capture());
         return captor.getValue();
     }
 
@@ -227,8 +229,17 @@ public class OrderServiceImplTest {
         Long userId = randomId();
         when(userDao.findById(userId)).thenReturn(Optional.empty());
 
-        InstanceNotFoundException e = assertThrows(InstanceNotFoundException.class,
-                () -> orderService.buyTickets(userId, 2L, 2, CARD));
+        assertThrows(InstanceNotFoundException.class, () -> orderService.buyTickets(userId, 2L, 2, CARD));
+    }
+
+    // Dato aleatorio: id de usuario inexistente, la excepción indica que falta el usuario
+    @Test
+    public void buyTicketsUserNotFoundExceptionNameIsUserEntity() {
+        Long userId = randomId();
+        when(userDao.findById(userId)).thenReturn(Optional.empty());
+
+        InstanceNotFoundException e = catchThrowableOfType(() -> orderService.buyTickets(userId, 2L, 2, CARD),
+                InstanceNotFoundException.class);
 
         assertEquals("project.entities.user", e.getName());
     }
@@ -239,7 +250,7 @@ public class OrderServiceImplTest {
         Long userId = randomId();
         when(userDao.findById(userId)).thenReturn(Optional.empty());
 
-        assertThrows(InstanceNotFoundException.class, () -> orderService.buyTickets(userId, 2L, 2, CARD));
+        catchThrowable(() -> orderService.buyTickets(userId, 2L, 2, CARD));
 
         verifyNoInteractions(sessionDao);
     }
@@ -251,8 +262,18 @@ public class OrderServiceImplTest {
         when(userDao.findById(1L)).thenReturn(Optional.of(new User()));
         when(sessionDao.findById(sessionId)).thenReturn(Optional.empty());
 
-        InstanceNotFoundException e = assertThrows(InstanceNotFoundException.class,
-                () -> orderService.buyTickets(1L, sessionId, 2, CARD));
+        assertThrows(InstanceNotFoundException.class, () -> orderService.buyTickets(1L, sessionId, 2, CARD));
+    }
+
+    // Dato aleatorio: id de sesión inexistente, la excepción indica que falta la sesión
+    @Test
+    public void buyTicketsSessionNotFoundExceptionNameIsSessionEntity() {
+        Long sessionId = randomId();
+        when(userDao.findById(1L)).thenReturn(Optional.of(new User()));
+        when(sessionDao.findById(sessionId)).thenReturn(Optional.empty());
+
+        InstanceNotFoundException e = catchThrowableOfType(() -> orderService.buyTickets(1L, sessionId, 2, CARD),
+                InstanceNotFoundException.class);
 
         assertEquals("project.entities.session", e.getName());
     }
@@ -293,8 +314,8 @@ public class OrderServiceImplTest {
         int freeSeats = randomInt(0, 100);
         userAndSessionExist(futureSession(freeSeats));
 
-        NotEnoughTicketsException e = assertThrows(NotEnoughTicketsException.class,
-                () -> orderService.buyTickets(1L, 2L, freeSeats + 1, CARD));
+        NotEnoughTicketsException e = catchThrowableOfType(
+                () -> orderService.buyTickets(1L, 2L, freeSeats + 1, CARD), NotEnoughTicketsException.class);
 
         assertEquals(freeSeats, e.getNumberTicketsLeft());
     }
@@ -306,8 +327,7 @@ public class OrderServiceImplTest {
         Session session = futureSession(freeSeats);
         userAndSessionExist(session);
 
-        assertThrows(NotEnoughTicketsException.class,
-                () -> orderService.buyTickets(1L, 2L, freeSeats + 1, CARD));
+        catchThrowable(() -> orderService.buyTickets(1L, 2L, freeSeats + 1, CARD));
 
         assertEquals(freeSeats, session.getFreeSeats());
     }
@@ -318,8 +338,7 @@ public class OrderServiceImplTest {
         int freeSeats = randomInt(0, 100);
         userAndSessionExist(futureSession(freeSeats));
 
-        assertThrows(NotEnoughTicketsException.class,
-                () -> orderService.buyTickets(1L, 2L, freeSeats + 1, CARD));
+        catchThrowable(() -> orderService.buyTickets(1L, 2L, freeSeats + 1, CARD));
 
         verify(orderDao, never()).save(any());
     }
@@ -403,6 +422,40 @@ public class OrderServiceImplTest {
         assertEquals(PageRequest.of(page, size), captor.getValue());
     }
 
+    // Valores frontera: primera página (0) y tamaño mínimo (1)
+    @Test
+    public void findUserOrdersWithFirstPageAndSizeOnePassesThemToDao() throws InstanceNotFoundException {
+        Long userId = randomId();
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        when(userDao.existsById(userId)).thenReturn(true);
+        when(orderDao.findByUserIdOrderByDateDesc(eq(userId), captor.capture()))
+                .thenReturn(new SliceImpl<>(List.of()));
+
+        orderService.findUserOrders(userId, 0, 1);
+
+        assertEquals(PageRequest.of(0, 1), captor.getValue());
+    }
+
+    // ---------- Partición inválida: página o tamaño fuera de rango ----------
+
+    // Valor frontera: página -1, justo antes de la primera página
+    @Test
+    public void findUserOrdersWithNegativePageThrows() {
+        Long userId = randomId();
+        when(userDao.existsById(userId)).thenReturn(true);
+
+        assertThrows(IllegalArgumentException.class, () -> orderService.findUserOrders(userId, -1, 10));
+    }
+
+    // Valor frontera: tamaño 0, justo por debajo del tamaño mínimo
+    @Test
+    public void findUserOrdersWithZeroSizeThrows() {
+        Long userId = randomId();
+        when(userDao.existsById(userId)).thenReturn(true);
+
+        assertThrows(IllegalArgumentException.class, () -> orderService.findUserOrders(userId, 0, 0));
+    }
+
     // ---------- Partición inválida: usuario inexistente ----------
 
     // Dato aleatorio: id de usuario inexistente
@@ -420,7 +473,7 @@ public class OrderServiceImplTest {
         Long userId = randomId();
         when(userDao.existsById(userId)).thenReturn(false);
 
-        assertThrows(InstanceNotFoundException.class, () -> orderService.findUserOrders(userId, 0, 10));
+        catchThrowable(() -> orderService.findUserOrders(userId, 0, 10));
 
         verifyNoInteractions(orderDao);
     }
@@ -449,8 +502,17 @@ public class OrderServiceImplTest {
         Long orderId = randomId();
         when(orderDao.findById(orderId)).thenReturn(Optional.empty());
 
-        InstanceNotFoundException e = assertThrows(InstanceNotFoundException.class,
-                () -> orderService.deliverTickets(orderId, CARD));
+        assertThrows(InstanceNotFoundException.class, () -> orderService.deliverTickets(orderId, CARD));
+    }
+
+    // Dato aleatorio: id de pedido inexistente, la excepción indica que falta el pedido
+    @Test
+    public void orderNotFoundExceptionNameIsOrderEntity() {
+        Long orderId = randomId();
+        when(orderDao.findById(orderId)).thenReturn(Optional.empty());
+
+        InstanceNotFoundException e = catchThrowableOfType(() -> orderService.deliverTickets(orderId, CARD),
+                InstanceNotFoundException.class);
 
         assertEquals("project.entities.order", e.getName());
     }
@@ -502,8 +564,8 @@ public class OrderServiceImplTest {
         Long orderId = randomId();
         when(orderDao.findById(orderId)).thenReturn(Optional.of(order(LocalDateTime.now().plusDays(1), false)));
 
-        CreditCardException e = assertThrows(CreditCardException.class,
-                () -> orderService.deliverTickets(orderId, "0000000000000000"));
+        CreditCardException e = catchThrowableOfType(() -> orderService.deliverTickets(orderId, "0000000000000000"),
+                CreditCardException.class);
 
         assertEquals(orderId, e.getOrderId());
     }
@@ -515,7 +577,7 @@ public class OrderServiceImplTest {
         Order order = order(LocalDateTime.now().plusDays(1), false);
         when(orderDao.findById(orderId)).thenReturn(Optional.of(order));
 
-        assertThrows(CreditCardException.class, () -> orderService.deliverTickets(orderId, "0000000000000000"));
+        catchThrowable(() -> orderService.deliverTickets(orderId, "0000000000000000"));
 
         assertFalse(order.isDelivered());
     }

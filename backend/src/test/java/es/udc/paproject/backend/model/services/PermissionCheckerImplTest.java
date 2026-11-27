@@ -1,5 +1,6 @@
 package es.udc.paproject.backend.model.services;
 
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -86,8 +87,8 @@ public class PermissionCheckerImplTest {
         Long id = randomId();
         when(userDao.findById(id)).thenReturn(Optional.empty());
 
-        InstanceNotFoundException e = assertThrows(InstanceNotFoundException.class,
-                () -> permissionChecker.checkUser(id));
+        InstanceNotFoundException e = catchThrowableOfType(() -> permissionChecker.checkUser(id),
+                InstanceNotFoundException.class);
 
         assertEquals(id, e.getKey());
     }
@@ -98,8 +99,8 @@ public class PermissionCheckerImplTest {
         Long id = randomId();
         when(userDao.findById(id)).thenReturn(Optional.empty());
 
-        InstanceNotFoundException e = assertThrows(InstanceNotFoundException.class,
-                () -> permissionChecker.checkUser(id));
+        InstanceNotFoundException e = catchThrowableOfType(() -> permissionChecker.checkUser(id),
+                InstanceNotFoundException.class);
 
         assertEquals("project.entities.user", e.getName());
     }

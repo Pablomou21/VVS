@@ -1,5 +1,7 @@
 package es.udc.paproject.backend.model.services;
 
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -105,7 +107,7 @@ public class UserServiceImplTest {
         User user = randomUser();
         when(userDao.existsByUserName(user.getUserName())).thenReturn(true);
 
-        assertThrows(DuplicateInstanceException.class, () -> userService.signUp(user));
+        catchThrowable(() -> userService.signUp(user));
 
         verify(userDao, never()).save(any());
     }
@@ -116,8 +118,8 @@ public class UserServiceImplTest {
         User user = randomUser();
         when(userDao.existsByUserName(user.getUserName())).thenReturn(true);
 
-        DuplicateInstanceException e = assertThrows(DuplicateInstanceException.class,
-                () -> userService.signUp(user));
+        DuplicateInstanceException e = catchThrowableOfType(() -> userService.signUp(user),
+                DuplicateInstanceException.class);
 
         assertEquals(user.getUserName(), e.getKey());
     }
@@ -167,8 +169,8 @@ public class UserServiceImplTest {
         String userName = randomText();
         when(userDao.findByUserName(userName)).thenReturn(Optional.empty());
 
-        IncorrectLoginException e = assertThrows(IncorrectLoginException.class,
-                () -> userService.login(userName, randomText()));
+        IncorrectLoginException e = catchThrowableOfType(() -> userService.login(userName, randomText()),
+                IncorrectLoginException.class);
 
         assertEquals(userName, e.getUserName());
     }
@@ -297,8 +299,7 @@ public class UserServiceImplTest {
         when(permissionChecker.checkUser(id)).thenReturn(user);
         when(passwordEncoder.matches(oldPassword, storedPassword)).thenReturn(false);
 
-        assertThrows(IncorrectPasswordException.class,
-                () -> userService.changePassword(id, oldPassword, randomText()));
+        catchThrowable(() -> userService.changePassword(id, oldPassword, randomText()));
 
         assertEquals(storedPassword, user.getPassword());
     }
