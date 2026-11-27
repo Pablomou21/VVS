@@ -50,12 +50,18 @@ public class MovieServiceIntegrationTest {
 
     private Movie movie1;
     private Movie movie2;
+    private Room room;
     private Session sessionToday;
     private Session sessionFuture;
 
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();
+    }
+
+    private Session createSession(Movie movie, LocalDateTime date) {
+        Session session = new Session(movie, room, date, new BigDecimal("7.50"));
+        return sessionDao.save(session);
     }
 
     @BeforeEach
@@ -66,7 +72,7 @@ public class MovieServiceIntegrationTest {
         movie2 = new Movie("Batman", "Summary Batman", (short) 140);
         movieDao.save(movie2);
 
-        Room room = new Room("Room 1", 50);
+        room = new Room("Room 1", 50);
         roomDao.save(room);
 
         sessionToday = new Session(movie1, room, LocalDate.now().atTime(23, 59, 59), new BigDecimal("7.50"));
@@ -118,6 +124,117 @@ public class MovieServiceIntegrationTest {
     @Test
     public void testViewBillboardEmptyDay() throws Exception {
         List<BillboardEntry> billboard = movieService.viewBillboard(3);
+
+        assertTrue(billboard.isEmpty());
+    }
+
+    /* Partición equivalente: Comprobación de que, con varias películas el mismo día, la primera entrada es la de título alfabéticamente menor */
+    @Test
+    public void testViewBillboardOrdersMoviesByTitle() throws Exception {
+        LocalDate day = LocalDate.now().plusDays(2);
+        createSession(movie2, day.atTime(10, 0));
+        createSession(movie1, day.atTime(20, 0));
+        flushAndClear();
+
+        List<BillboardEntry> billboard = movieService.viewBillboard(2);
+
+        assertEquals("Avatar", billboard.get(0).getMovie().getTitle());
+    }
+
+    /* Partición equivalente: Comprobación de que varias sesiones de una misma película el mismo día se agrupan en una sola entrada */
+    @Test
+    public void testViewBillboardGroupsSessionsOfSameMovie() throws Exception {
+        LocalDate day = LocalDate.now().plusDays(2);
+        createSession(movie1, day.atTime(10, 0));
+        createSession(movie1, day.atTime(16, 0));
+        createSession(movie1, day.atTime(22, 0));
+        flushAndClear();
+
+        List<BillboardEntry> billboard = movieService.viewBillboard(2);
+
+        assertEquals(3, billboard.get(0).getSessions().size());
+    }
+
+    /* Partición equivalente: Comprobación de que, con dos películas el mismo día, se devuelve una entrada por película */
+    @Test
+    public void testViewBillboardOneEntryPerMovie() throws Exception {
+        LocalDate day = LocalDate.now().plusDays(2);
+        createSession(movie1, day.atTime(10, 0));
+        createSession(movie2, day.atTime(12, 0));
+        createSession(movie1, day.atTime(18, 0));
+        flushAndClear();
+
+        List<BillboardEntry> billboard = movieService.viewBillboard(2);
+
+        assertEquals(2, billboard.size());
+    }
+
+    /* Partición equivalente: Comprobación de que las sesiones de una misma película se ordenan por fecha ascendente */
+    @Test
+    public void testViewBillboardOrdersSessionsByDate() throws Exception {
+        LocalDate day = LocalDate.now().plusDays(2);
+        createSession(movie1, day.atTime(22, 0));
+        createSession(movie1, day.atTime(10, 0));
+        createSession(movie1, day.atTime(16, 0));
+        flushAndClear();
+
+        List<BillboardEntry> billboard = movieService.viewBillboard(2);
+
+        assertEquals(day.atTime(10, 0), billboard.get(0).getSessions().get(0).getDate());
+    }
+
+    /* Valor frontera: Comprobación de que una sesión de hoy que empezó hace 1 minuto no aparece en la cartelera del día 0 */
+    @Test
+    public void testViewBillboardDayZeroExcludesPastSessionOfToday() throws Exception {
+        Session pastSession = createSession(movie2, LocalDateTime.now().minusMinutes(1));
+        flushAndClear();
+
+        List<BillboardEntry> billboard = movieService.viewBillboard(0);
+
+        assertTrue(billboard.stream().flatMap(entry -> entry.getSessions().stream())
+            .noneMatch(session -> session.getId().equals(pastSession.getId())));
+    }
+
+    /* Valor frontera: Comprobación de que una sesión a las 00:00:00 del día N aparece en la cartelera del día N (inicio del rango) */
+    @Test
+    public void testViewBillboardIncludesSessionAtStartOfDay() throws Exception {
+        createSession(movie1, LocalDate.now().plusDays(4).atStartOfDay());
+        flushAndClear();
+
+        List<BillboardEntry> billboard = movieService.viewBillboard(4);
+
+        assertEquals(1, billboard.size());
+    }
+
+    /* Valor frontera: Comprobación de que una sesión a las 23:59:59 del día N aparece en la cartelera del día N (fin del rango) */
+    @Test
+    public void testViewBillboardIncludesSessionAtEndOfDay() throws Exception {
+        createSession(movie1, LocalDate.now().plusDays(4).atTime(23, 59, 59));
+        flushAndClear();
+
+        List<BillboardEntry> billboard = movieService.viewBillboard(4);
+
+        assertEquals(1, billboard.size());
+    }
+
+    /* Valor frontera / Bug detectado (Issue #16): Comprobación de que una sesión a las 00:00:00 del día N+1 no aparece en la cartelera del día N */
+    @Test
+    public void testViewBillboardExcludesSessionAtStartOfNextDay() throws Exception {
+        createSession(movie1, LocalDate.now().plusDays(5).atStartOfDay());
+        flushAndClear();
+
+        List<BillboardEntry> billboard = movieService.viewBillboard(4);
+
+        assertTrue(billboard.isEmpty());
+    }
+
+    /* Valor frontera: Comprobación de que una sesión a las 23:59:59 del día N-1 no aparece en la cartelera del día N */
+    @Test
+    public void testViewBillboardExcludesSessionAtEndOfPreviousDay() throws Exception {
+        createSession(movie1, LocalDate.now().plusDays(3).atTime(23, 59, 59));
+        flushAndClear();
+
+        List<BillboardEntry> billboard = movieService.viewBillboard(4);
 
         assertTrue(billboard.isEmpty());
     }
