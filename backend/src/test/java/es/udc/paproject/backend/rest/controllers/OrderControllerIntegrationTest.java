@@ -22,8 +22,18 @@ import es.udc.paproject.backend.model.entities.Order;
 import es.udc.paproject.backend.model.entities.Room;
 import es.udc.paproject.backend.model.entities.Session;
 import es.udc.paproject.backend.model.entities.User;
+import es.udc.paproject.backend.testutil.PerformanceMeter;
 
 public class OrderControllerIntegrationTest extends ControllerIntegrationTestBase {
+
+    /* Requisito no funcional: una petición POST /orders debe responder de media en menos de 100 ms, incluyendo el filtro
+     * JWT, la seguridad, el controlador, el servicio, la BD real y la serialización JSON.
+     * Criterio: 100 ms es el límite para que el usuario perciba una respuesta como instantánea (J. Nielsen, "Response Times:
+     * The 3 Important Limits"); a diferencia de las pruebas de servicio (50 ms), aquí se mide toda la cadena del backend */
+    private static final double BUY_TICKETS_REQUEST_THRESHOLD_MS = 100.0;
+
+    /* Capacidad de la sala de la prueba de rendimiento: suficiente para el calentamiento y todas las compras medidas */
+    private static final int PERFORMANCE_ROOM_CAPACITY = 500;
 
     private User user;
     private User otherUser;
@@ -461,5 +471,27 @@ public class OrderControllerIntegrationTest extends ControllerIntegrationTestBas
     @Test
     public void testDeleteOrderReturnsForbidden() throws Exception {
         mockMvc.perform(delete("/orders/1").header(AUTHORIZATION, bearer(user))).andExpect(status().isForbidden());
+    }
+
+    // -------------------------------------------------------------------------
+    // Pruebas de rendimiento (JETM) de extremo a extremo
+    // -------------------------------------------------------------------------
+
+    /* Rendimiento / Requisito no funcional: Comprobación de que el tiempo medio de POST /orders con un token JWT real,
+     * en 50 compras medidas tras 10 de calentamiento, está por debajo del umbral. La petición medida es una compra válida,
+     * cuyo resultado correcto (HTTP 200) ya comprueba testBuyTicketsSuccessReturnsOk */
+    @Test
+    public void testBuyTicketsRequestAverageTimeIsBelowThreshold() throws Exception {
+        Room bigRoom = createRoom(PERFORMANCE_ROOM_CAPACITY);
+        Session bigSession = createSession(movie, bigRoom, LocalDate.now().plusDays(1).atTime(18, 0));
+        String authorization = bearer(user);
+        flushAndClear();
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("POST /orders", () -> {
+            buy(authorization, bigSession.getId(), 1, CREDIT_CARD);
+            flushAndClear();
+        });
+
+        assertTrue(result.averageMillis() < BUY_TICKETS_REQUEST_THRESHOLD_MS);
     }
 }
