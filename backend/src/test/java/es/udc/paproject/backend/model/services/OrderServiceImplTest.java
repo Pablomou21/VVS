@@ -16,6 +16,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,12 +43,18 @@ import es.udc.paproject.backend.model.exceptions.CreditCardException;
 import es.udc.paproject.backend.model.exceptions.InstanceNotFoundException;
 import es.udc.paproject.backend.model.exceptions.NotEnoughTicketsException;
 import es.udc.paproject.backend.model.exceptions.SessionAlreadyStartedException;
+import es.udc.paproject.backend.testutil.PerformanceMeter;
 import net.jqwik.api.Arbitraries;
 
 @ExtendWith(MockitoExtension.class)
 public class OrderServiceImplTest {
 
     private static final String CARD = "1234567812345678";
+
+    // Requisito no funcional (unidad): con los DAO simulados, la lógica del servicio debe ejecutarse de media en
+    // menos de 1 ms por operación. Criterio: es el 2 % del umbral de integración (50 ms); si la lógica pura consumiese
+    // más, quedaría poco margen para la BD, que es la parte costosa de la operación
+    private static final double SERVICE_LOGIC_THRESHOLD_MS = 1.0;
 
     @Mock
     private OrderDao orderDao;
@@ -612,6 +619,35 @@ public class OrderServiceImplTest {
         when(orderDao.findById(orderId)).thenReturn(Optional.of(order(LocalDateTime.now().plusDays(1), true)));
 
         assertThrows(CreditCardException.class, () -> orderService.deliverTickets(orderId, "0000000000000000"));
+    }
+
+    // ========== Rendimiento (JETM) con los DAO simulados ==========
+
+    // Rendimiento: tiempo medio de buyTickets, 50 compras medidas tras 10 de calentamiento, en una sesión con plazas de sobra
+    @Test
+    public void buyTicketsAverageTimeIsBelowThreshold() throws Exception {
+        userAndSessionExist(futureSession(1000));
+        when(orderDao.save(any())).thenReturn(new Order());
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("OrderServiceImpl:buyTickets",
+                () -> orderService.buyTickets(1L, 2L, 1, CARD));
+
+        assertTrue(result.averageMillis() < SERVICE_LOGIC_THRESHOLD_MS);
+    }
+
+    // Rendimiento: tiempo medio de findUserOrders con una página de 10 pedidos devuelta por el DAO simulado
+    @Test
+    public void findUserOrdersAverageTimeIsBelowThreshold() throws Exception {
+        Long userId = randomId();
+        List<Order> orders = Collections.nCopies(10, order(LocalDateTime.now().plusDays(1), false));
+        when(userDao.existsById(userId)).thenReturn(true);
+        when(orderDao.findByUserIdOrderByDateDesc(eq(userId), any()))
+                .thenReturn(new SliceImpl<>(orders, PageRequest.of(0, 10), true));
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("OrderServiceImpl:findUserOrders",
+                () -> orderService.findUserOrders(userId, 0, 10));
+
+        assertTrue(result.averageMillis() < SERVICE_LOGIC_THRESHOLD_MS);
     }
 
 }
