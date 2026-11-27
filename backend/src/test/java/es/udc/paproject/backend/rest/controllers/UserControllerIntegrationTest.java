@@ -209,6 +209,13 @@ public class UserControllerIntegrationTest extends ControllerIntegrationTestBase
             .andExpect(jsonPath("$.user.userName").value("viewer"));
     }
 
+    /* Partición equivalente: Comprobación de que la reautenticación con el token de un taquillero devuelve el rol CLERK */
+    @Test
+    public void testLoginFromServiceTokenClerkReturnsClerkRole() throws Exception {
+        mockMvc.perform(post("/users/loginFromServiceToken").header(AUTHORIZATION, bearer(clerk)))
+            .andExpect(jsonPath("$.user.role").value("CLERK"));
+    }
+
     /* Partición equivalente / Error: Comprobación de que un token inválido devuelve HTTP 401 Unauthorized */
     @Test
     public void testLoginFromServiceTokenInvalidTokenReturnsUnauthorized() throws Exception {
@@ -269,6 +276,14 @@ public class UserControllerIntegrationTest extends ControllerIntegrationTestBase
     @Test
     public void testUpdateProfileOfAnotherUserReturnsForbidden() throws Exception {
         putJson("/users/" + clerk.getId(), profileJson("NewName", "NewLast", "new@test.com"), bearer(user))
+            .andExpect(status().isForbidden());
+    }
+
+    /* Partición equivalente / Error: Comprobación de que un taquillero (CLERK) no puede actualizar el perfil de un
+     * espectador (HTTP 403 Forbidden): el rol CLERK no da permisos sobre otros usuarios */
+    @Test
+    public void testUpdateProfileClerkOnAnotherUserReturnsForbidden() throws Exception {
+        putJson("/users/" + user.getId(), profileJson("NewName", "NewLast", "new@test.com"), bearer(clerk))
             .andExpect(status().isForbidden());
     }
 
@@ -362,6 +377,30 @@ public class UserControllerIntegrationTest extends ControllerIntegrationTestBase
     public void testChangePasswordAnonymousReturnsForbidden() throws Exception {
         postJson("/users/" + user.getId() + "/changePassword", changePasswordJson(PASSWORD, "newPassword"))
             .andExpect(status().isForbidden());
+    }
+
+    /* Partición equivalente: Comprobación de que un taquillero (CLERK) puede cambiar su propia contraseña
+     * (HTTP 204 No Content) */
+    @Test
+    public void testChangePasswordClerkReturnsNoContent() throws Exception {
+        postJson("/users/" + clerk.getId() + "/changePassword", changePasswordJson(PASSWORD, "newPassword"), bearer(clerk))
+            .andExpect(status().isNoContent());
+    }
+
+    /* Partición equivalente / Error: Comprobación de que un taquillero (CLERK) no puede cambiar la contraseña de un
+     * espectador (HTTP 403 Forbidden): el rol CLERK no da permisos sobre otros usuarios */
+    @Test
+    public void testChangePasswordClerkOnAnotherUserReturnsForbidden() throws Exception {
+        postJson("/users/" + user.getId() + "/changePassword", changePasswordJson(PASSWORD, "newPassword"), bearer(clerk))
+            .andExpect(status().isForbidden());
+    }
+
+    /* Partición equivalente / Error: Comprobación de que cambiar la contraseña con un token inválido devuelve
+     * HTTP 401 Unauthorized */
+    @Test
+    public void testChangePasswordInvalidTokenReturnsUnauthorized() throws Exception {
+        postJson("/users/" + user.getId() + "/changePassword", changePasswordJson(PASSWORD, "newPassword"),
+            INVALID_TOKEN_HEADER).andExpect(status().isUnauthorized());
     }
 
     /* Valor frontera: Comprobación de que se permite una nueva contraseña de 60 caracteres */

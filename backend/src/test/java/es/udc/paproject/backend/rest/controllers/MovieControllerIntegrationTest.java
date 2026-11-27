@@ -121,6 +121,16 @@ public class MovieControllerIntegrationTest extends ControllerIntegrationTestBas
             .andExpect(jsonPath("$.movieTitle").value("Avatar"));
     }
 
+    /* Partición equivalente: Comprobación de que un taquillero (CLERK) autenticado puede consultar una sesión
+     * (HTTP 200 OK), ya que la ruta es pública para cualquier rol */
+    @Test
+    public void testFindSessionByIdAsClerkReturnsOk() throws Exception {
+        User clerk = createUser("clerk", User.RoleType.CLERK);
+
+        mockMvc.perform(get("/movies/sessions/" + sessionToday.getId()).header(AUTHORIZATION, bearer(clerk)))
+            .andExpect(status().isOk());
+    }
+
     /* Valor frontera / Caso de error: Comprobación de que consultar una sesión iniciada hace 1 segundo devuelve HTTP 403 Forbidden */
     @Test
     public void testFindSessionByIdAlreadyStartedReturnsForbidden() throws Exception {
@@ -149,6 +159,15 @@ public class MovieControllerIntegrationTest extends ControllerIntegrationTestBas
     @Test
     public void testViewBillboardDayZeroReturnsOneEntry() throws Exception {
         mockMvc.perform(get("/movies/billboard/0")).andExpect(jsonPath("$.length()").value(1));
+    }
+
+    /* Partición equivalente: Comprobación de que un taquillero (CLERK) autenticado puede consultar la cartelera
+     * (HTTP 200 OK), ya que la ruta es pública para cualquier rol */
+    @Test
+    public void testViewBillboardAsClerkReturnsOk() throws Exception {
+        User clerk = createUser("clerk", User.RoleType.CLERK);
+
+        mockMvc.perform(get("/movies/billboard/0").header(AUTHORIZATION, bearer(clerk))).andExpect(status().isOk());
     }
 
     /* Valor frontera: Comprobación de que el día 6 contiene 2 películas con sesiones programadas */
