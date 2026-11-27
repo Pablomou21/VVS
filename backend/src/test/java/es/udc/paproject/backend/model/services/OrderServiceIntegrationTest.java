@@ -150,7 +150,7 @@ public class OrderServiceIntegrationTest {
         assertEquals(0, sessionDao.findById(session.getId()).get().getFreeSeats());
     }
 
-    /* Valor frontera / Bug detectado (Issue #1): Comprobación de que se lanza IllegalArgumentException al intentar comprar entradas con un número no positivo */
+    /* Valor frontera / Bug detectado (Issue #13): Comprobación de que se lanza IllegalArgumentException al intentar comprar entradas con un número no positivo */
     @Test
     public void testBuyTicketsWithNonPositiveTickets() {
         assertThrows(IllegalArgumentException.class, () ->
