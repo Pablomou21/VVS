@@ -1,6 +1,7 @@
 package es.udc.paproject.backend.rest.controllers;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -111,7 +112,7 @@ public class MovieControllerIntegrationTest extends ControllerIntegrationTestBas
     /* Valor frontera / Caso de error: Comprobación de que consultar una sesión iniciada hace 1 segundo devuelve HTTP 403 Forbidden */
     @Test
     public void testFindSessionByIdAlreadyStartedReturnsForbidden() throws Exception {
-        Session pastSession = createSession(avatar, room, LocalDate.now().atTime(0, 0).minusSeconds(1));
+        Session pastSession = createSession(avatar, room, LocalDateTime.now().minusSeconds(1));
 
         mockMvc.perform(get("/movies/sessions/" + pastSession.getId())).andExpect(status().isForbidden());
     }

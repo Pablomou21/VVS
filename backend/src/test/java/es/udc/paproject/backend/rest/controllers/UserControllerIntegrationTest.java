@@ -223,10 +223,12 @@ public class UserControllerIntegrationTest extends ControllerIntegrationTestBase
             .andExpect(status().isNotFound());
     }
 
-    /* Partición equivalente / Error: Comprobación de que realizar la petición sin token devuelve un error 4xx de cliente */
+    /* Partición equivalente / Caso de error: Comprobación de que realizar la petición sin token devuelve HTTP 401 Unauthorized.
+     * Bug detectado (Issue #14): la ruta es permitAll y, sin token, el controlador no recibe los atributos
+     * userId y serviceToken que pone JwtFilter, por lo que devuelve 400 Bad Request en lugar de 401 */
     @Test
-    public void testLoginFromServiceTokenWithoutTokenReturnsClientError() throws Exception {
-        mockMvc.perform(post("/users/loginFromServiceToken")).andExpect(status().is4xxClientError());
+    public void testLoginFromServiceTokenWithoutTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/users/loginFromServiceToken")).andExpect(status().isUnauthorized());
     }
 
     // -------------------------------------------------------------------------
