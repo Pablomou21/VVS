@@ -3,6 +3,7 @@ package es.udc.paproject.backend.rest.controllers;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
@@ -15,8 +16,19 @@ import es.udc.paproject.backend.model.entities.Movie;
 import es.udc.paproject.backend.model.entities.Room;
 import es.udc.paproject.backend.model.entities.Session;
 import es.udc.paproject.backend.model.entities.User;
+import es.udc.paproject.backend.testutil.PerformanceMeter;
 
 public class MovieControllerIntegrationTest extends ControllerIntegrationTestBase {
+
+    /* Requisito no funcional: una petición GET /movies/billboard/{day} debe responder de media en menos de 100 ms, incluyendo
+     * la seguridad, el controlador, el servicio, la BD real y la serialización JSON.
+     * Criterio: 100 ms es el límite para que el usuario perciba una respuesta como instantánea (J. Nielsen, "Response Times:
+     * The 3 Important Limits"); a diferencia de las pruebas de servicio (50 ms), aquí se mide toda la cadena del backend */
+    private static final double VIEW_BILLBOARD_REQUEST_THRESHOLD_MS = 100.0;
+
+    /* Tamaño de la cartelera de la prueba de rendimiento: número de películas y de sesiones por película en el día medido */
+    private static final int PERFORMANCE_MOVIES = 5;
+    private static final int PERFORMANCE_SESSIONS_PER_MOVIE = 4;
 
     private Movie avatar;
     private Movie batman;
@@ -185,5 +197,30 @@ public class MovieControllerIntegrationTest extends ControllerIntegrationTestBas
     @Test
     public void testViewBillboardExtraPathSegmentReturnsForbidden() throws Exception {
         mockMvc.perform(get("/movies/billboard/1/extra")).andExpect(status().isForbidden());
+    }
+
+    // -------------------------------------------------------------------------
+    // Pruebas de rendimiento (JETM) de extremo a extremo
+    // -------------------------------------------------------------------------
+
+    /* Rendimiento / Requisito no funcional: Comprobación de que el tiempo medio de GET /movies/billboard/{day},
+     * con una cartelera de 5 películas y 4 sesiones por película, está por debajo del umbral */
+    @Test
+    public void testViewBillboardRequestAverageTimeIsBelowThreshold() throws Exception {
+        LocalDate day = LocalDate.now().plusDays(2);
+        for (int i = 0; i < PERFORMANCE_MOVIES; i++) {
+            Movie movie = createMovie("Performance Movie " + i);
+            for (int j = 0; j < PERFORMANCE_SESSIONS_PER_MOVIE; j++) {
+                createSession(movie, room, day.atTime(10 + 3 * j, 0));
+            }
+        }
+        flushAndClear();
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("GET /movies/billboard/{day}", () -> {
+            mockMvc.perform(get("/movies/billboard/2"));
+            flushAndClear();
+        });
+
+        assertTrue(result.averageMillis() < VIEW_BILLBOARD_REQUEST_THRESHOLD_MS);
     }
 }

@@ -17,6 +17,7 @@ import es.udc.paproject.backend.model.exceptions.DuplicateInstanceException;
 import es.udc.paproject.backend.model.exceptions.IncorrectLoginException;
 import es.udc.paproject.backend.model.exceptions.IncorrectPasswordException;
 import es.udc.paproject.backend.model.exceptions.InstanceNotFoundException;
+import es.udc.paproject.backend.testutil.PerformanceMeter;
 import jakarta.persistence.EntityManager;
 
 @SpringBootTest
@@ -25,6 +26,13 @@ import jakarta.persistence.EntityManager;
 public class UserServiceIntegrationTest {
 
     private static final Long NON_EXISTENT_ID = -1L;
+
+    /* Requisito no funcional: un inicio de sesión debe completarse de media en menos de 1000 ms contra la BD real.
+     * Criterio: es mucho mayor que el de las demás operaciones (50 ms) porque login verifica la contraseña con BCrypt,
+     * que es lento a propósito para dificultar los ataques de fuerza bruta. Se toma 1 s, el límite para que el usuario
+     * no pierda el hilo de la interacción (J. Nielsen, "Response Times: The 3 Important Limits"), que es aceptable
+     * para una operación que se realiza una sola vez por sesión */
+    private static final double LOGIN_THRESHOLD_MS = 1000.0;
 
     @Autowired
     private UserService userService;
@@ -249,5 +257,24 @@ public class UserServiceIntegrationTest {
         flushAndClear();
 
         assertNotEquals("newPassword", userService.loginFromId(user.getId()).getPassword());
+    }
+
+    // -------------------------------------------------------------------------
+    // Pruebas de rendimiento (JETM) contra la BD real
+    // -------------------------------------------------------------------------
+
+    /* Rendimiento / Requisito no funcional: Comprobación de que el tiempo medio de login contra la BD real
+     * (búsqueda del usuario y verificación BCrypt de la contraseña) está por debajo del umbral */
+    @Test
+    public void testLoginAverageTimeIsBelowThreshold() throws Exception {
+        userService.signUp(createTestUser("john"));
+        flushAndClear();
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("UserService:login", () -> {
+            userService.login("john", "password");
+            flushAndClear();
+        });
+
+        assertTrue(result.averageMillis() < LOGIN_THRESHOLD_MS);
     }
 }

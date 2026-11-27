@@ -30,6 +30,7 @@ import es.udc.paproject.backend.model.exceptions.CreditCardException;
 import es.udc.paproject.backend.model.exceptions.InstanceNotFoundException;
 import es.udc.paproject.backend.model.exceptions.NotEnoughTicketsException;
 import es.udc.paproject.backend.model.exceptions.SessionAlreadyStartedException;
+import es.udc.paproject.backend.testutil.PerformanceMeter;
 import jakarta.persistence.EntityManager;
 
 @SpringBootTest
@@ -38,6 +39,25 @@ import jakarta.persistence.EntityManager;
 public class OrderServiceIntegrationTest {
 
     private static final Long NON_EXISTENT_ID = -1L;
+
+    /* Criterio común de los umbrales de servicio contra la BD real: 100 ms es el límite para que el usuario perciba
+     * una respuesta como instantánea (J. Nielsen, "Response Times: The 3 Important Limits"). Se reserva la mitad
+     * (50 ms) para la operación de servicio con la BD y el resto para la red, la capa REST y el frontend. */
+
+    /* Requisito no funcional: una compra de entradas debe completarse de media en menos de 50 ms contra la BD real
+     * (incluye la lectura del usuario y de la sesión, la actualización de las plazas libres y la inserción de la compra).
+     * Medición de referencia en desarrollo: ~5 ms de media */
+    private static final double BUY_TICKETS_THRESHOLD_MS = 50.0;
+
+    /* Requisito no funcional: la consulta de una página del historial de compras debe responder de media en menos de 50 ms
+     * contra la BD real. Medición de referencia en desarrollo: ~4-5 ms de media */
+    private static final double FIND_USER_ORDERS_THRESHOLD_MS = 50.0;
+
+    /* Capacidad de la sala de las pruebas de rendimiento: suficiente para el calentamiento y todas las compras medidas */
+    private static final int PERFORMANCE_ROOM_CAPACITY = 500;
+
+    /* Número de compras previas del historial en la prueba de rendimiento de findUserOrders */
+    private static final int PERFORMANCE_ORDER_HISTORY_SIZE = 30;
 
     @Autowired
     private OrderService orderService;
@@ -327,5 +347,43 @@ public class OrderServiceIntegrationTest {
         assertThrows(SessionAlreadyStartedException.class, () ->
             orderService.deliverTickets(order.getId(), "1234567812345678")
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // Pruebas de rendimiento (JETM) contra la BD real
+    // -------------------------------------------------------------------------
+
+    /* Rendimiento / Requisito no funcional: Comprobación de que el tiempo medio de buyTickets contra la BD real,
+     * en 50 compras medidas tras 10 de calentamiento, está por debajo del umbral */
+    @Test
+    public void testBuyTicketsAverageTimeIsBelowThreshold() throws Exception {
+        Room bigRoom = roomDao.save(new Room("Big Room", PERFORMANCE_ROOM_CAPACITY));
+        Session bigSession = sessionDao.save(new Session(session.getMovie(), bigRoom,
+                LocalDateTime.now().plusDays(1), new BigDecimal("8.50")));
+        flushAndClear();
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("OrderService:buyTickets", () -> {
+            orderService.buyTickets(user.getId(), bigSession.getId(), 1, "1234567812345678");
+            flushAndClear();
+        });
+
+        assertTrue(result.averageMillis() < BUY_TICKETS_THRESHOLD_MS);
+    }
+
+    /* Rendimiento / Requisito no funcional: Comprobación de que el tiempo medio de findUserOrders contra la BD real,
+     * con un historial de 30 compras y páginas de 10, está por debajo del umbral */
+    @Test
+    public void testFindUserOrdersAverageTimeIsBelowThreshold() throws Exception {
+        for (int i = 0; i < PERFORMANCE_ORDER_HISTORY_SIZE; i++) {
+            orderDao.save(new Order(1, session, "1234567812345678", LocalDateTime.now().minusMinutes(i), user));
+        }
+        flushAndClear();
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("OrderService:findUserOrders", () -> {
+            orderService.findUserOrders(user.getId(), 0, 10);
+            flushAndClear();
+        });
+
+        assertTrue(result.averageMillis() < FIND_USER_ORDERS_THRESHOLD_MS);
     }
 }

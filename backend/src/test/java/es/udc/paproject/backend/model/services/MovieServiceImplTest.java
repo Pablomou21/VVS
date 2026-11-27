@@ -33,10 +33,16 @@ import es.udc.paproject.backend.model.entities.SessionDao;
 import es.udc.paproject.backend.model.exceptions.DayOutOfRangeException;
 import es.udc.paproject.backend.model.exceptions.InstanceNotFoundException;
 import es.udc.paproject.backend.model.exceptions.SessionAlreadyStartedException;
+import es.udc.paproject.backend.testutil.PerformanceMeter;
 import net.jqwik.api.Arbitraries;
 
 @ExtendWith(MockitoExtension.class)
 public class MovieServiceImplTest {
+
+    // Requisito no funcional (unidad): con los DAO simulados, la lógica del servicio debe ejecutarse de media en
+    // menos de 1 ms por operación. Criterio: es el 2 % del umbral de integración (50 ms); si la lógica pura consumiese
+    // más, quedaría poco margen para la BD, que es la parte costosa de la operación
+    private static final double SERVICE_LOGIC_THRESHOLD_MS = 1.0;
 
     @Mock
     private MovieDao movieDao;
@@ -414,6 +420,27 @@ public class MovieServiceImplTest {
                 SessionAlreadyStartedException.class);
 
         assertEquals(id, e.getSessionId());
+    }
+
+    // ========== Rendimiento (JETM) con los DAO simulados ==========
+
+    // Rendimiento: tiempo medio de viewBillboard cuando el DAO simulado devuelve 5 películas con 4 sesiones cada una,
+    // ya ordenadas por título y fecha, de modo que se mide la agrupación de sesiones en entradas de cartelera
+    @Test
+    public void viewBillboardAverageTimeIsBelowThreshold() throws Exception {
+        List<Session> sessions = new ArrayList<>();
+        for (long i = 0; i < 5; i++) {
+            Movie movie = movie(i + 1, "Pelicula " + i);
+            for (int j = 0; j < 4; j++) {
+                sessions.add(session(movie, LocalDateTime.now().plusDays(2).withHour(10 + 3 * j)));
+            }
+        }
+        daoReturns(sessions);
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("MovieServiceImpl:viewBillboard",
+                () -> movieService.viewBillboard(2));
+
+        assertTrue(result.averageMillis() < SERVICE_LOGIC_THRESHOLD_MS);
     }
 
 }

@@ -24,6 +24,7 @@ import es.udc.paproject.backend.model.entities.SessionDao;
 import es.udc.paproject.backend.model.exceptions.DayOutOfRangeException;
 import es.udc.paproject.backend.model.exceptions.InstanceNotFoundException;
 import es.udc.paproject.backend.model.exceptions.SessionAlreadyStartedException;
+import es.udc.paproject.backend.testutil.PerformanceMeter;
 import jakarta.persistence.EntityManager;
 
 @SpringBootTest
@@ -32,6 +33,15 @@ import jakarta.persistence.EntityManager;
 public class MovieServiceIntegrationTest {
 
     private static final Long NON_EXISTENT_ID = -1L;
+
+    /* Requisito no funcional: la consulta de la cartelera de un día debe responder de media en menos de 50 ms contra la BD real.
+     * Criterio: 100 ms es el límite para que el usuario perciba una respuesta como instantánea (J. Nielsen, "Response Times:
+     * The 3 Important Limits"); se reserva la mitad para el servicio con la BD y el resto para la red, la capa REST y el frontend */
+    private static final double VIEW_BILLBOARD_THRESHOLD_MS = 50.0;
+
+    /* Tamaño de la cartelera de la prueba de rendimiento: número de películas y de sesiones por película en el día medido */
+    private static final int PERFORMANCE_MOVIES = 5;
+    private static final int PERFORMANCE_SESSIONS_PER_MOVIE = 4;
 
     @Autowired
     private MovieService movieService;
@@ -289,5 +299,30 @@ public class MovieServiceIntegrationTest {
         assertThrows(SessionAlreadyStartedException.class, () ->
             movieService.findSessionById(pastSession.getId())
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // Pruebas de rendimiento (JETM) contra la BD real
+    // -------------------------------------------------------------------------
+
+    /* Rendimiento / Requisito no funcional: Comprobación de que el tiempo medio de viewBillboard contra la BD real,
+     * con una cartelera de 5 películas y 4 sesiones por película, está por debajo del umbral */
+    @Test
+    public void testViewBillboardAverageTimeIsBelowThreshold() throws Exception {
+        LocalDate day = LocalDate.now().plusDays(2);
+        for (int i = 0; i < PERFORMANCE_MOVIES; i++) {
+            Movie movie = movieDao.save(new Movie("Performance Movie " + i, "Summary", (short) 120));
+            for (int j = 0; j < PERFORMANCE_SESSIONS_PER_MOVIE; j++) {
+                createSession(movie, day.atTime(10 + 3 * j, 0));
+            }
+        }
+        flushAndClear();
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("MovieService:viewBillboard", () -> {
+            movieService.viewBillboard(2);
+            flushAndClear();
+        });
+
+        assertTrue(result.averageMillis() < VIEW_BILLBOARD_THRESHOLD_MS);
     }
 }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,10 +26,16 @@ import es.udc.paproject.backend.model.exceptions.DuplicateInstanceException;
 import es.udc.paproject.backend.model.exceptions.IncorrectLoginException;
 import es.udc.paproject.backend.model.exceptions.IncorrectPasswordException;
 import es.udc.paproject.backend.model.exceptions.InstanceNotFoundException;
+import es.udc.paproject.backend.testutil.PerformanceMeter;
 import net.jqwik.api.Arbitraries;
 
 @ExtendWith(MockitoExtension.class)
 public class UserServiceImplTest {
+
+    // Requisito no funcional (unidad): con el DAO y el cifrado simulados, la lógica del servicio debe ejecutarse de media
+    // en menos de 1 ms por operación. Criterio: aquí BCrypt está simulado, así que lo que se mide es solo la lógica del
+    // servicio; el coste real de BCrypt se mide aparte en UserServiceIntegrationTest
+    private static final double SERVICE_LOGIC_THRESHOLD_MS = 1.0;
 
     @Mock
     private PermissionChecker permissionChecker;
@@ -312,6 +319,21 @@ public class UserServiceImplTest {
 
         assertThrows(InstanceNotFoundException.class,
                 () -> userService.changePassword(id, randomText(), randomText()));
+    }
+
+    // ========== Rendimiento (JETM) con los colaboradores simulados ==========
+
+    // Rendimiento: tiempo medio de login con credenciales correctas, con el DAO y el cifrado simulados
+    @Test
+    public void loginAverageTimeIsBelowThreshold() throws Exception {
+        User user = randomUser();
+        when(userDao.findByUserName(user.getUserName())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password", user.getPassword())).thenReturn(true);
+
+        PerformanceMeter.Result result = PerformanceMeter.measure("UserServiceImpl:login",
+                () -> userService.login(user.getUserName(), "password"));
+
+        assertTrue(result.averageMillis() < SERVICE_LOGIC_THRESHOLD_MS);
     }
 
 }
