@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -158,6 +159,35 @@ public class OrderServiceIntegrationTest {
         );
     }
 
+    /* Valor frontera / Bug detectado (Issue #13): Comprobación de que se lanza IllegalArgumentException al intentar comprar 0 entradas */
+    @Test
+    public void testBuyTicketsWithZeroTickets() {
+        assertThrows(IllegalArgumentException.class, () ->
+            orderService.buyTickets(user.getId(), session.getId(), 0, "1234567812345678")
+        );
+    }
+
+    /* Partición equivalente / Valor frontera: Comprobación de que dos compras sucesivas que suman la capacidad de la sala dejan 0 asientos libres */
+    @Test
+    public void testBuyTicketsSuccessiveBuysExhaustFreeSeats() throws Exception {
+        orderService.buyTickets(user.getId(), session.getId(), 6, "1234567812345678");
+        orderService.buyTickets(user.getId(), session.getId(), 4, "1234567812345678");
+        flushAndClear();
+
+        assertEquals(0, sessionDao.findById(session.getId()).get().getFreeSeats());
+    }
+
+    /* Valor frontera / Caso de error: Comprobación de que, tras agotar las plazas con dos compras, una tercera compra de 1 entrada lanza NotEnoughTicketsException */
+    @Test
+    public void testBuyTicketsAfterSeatsExhaustedThrowsNotEnoughTickets() throws Exception {
+        orderService.buyTickets(user.getId(), session.getId(), 6, "1234567812345678");
+        orderService.buyTickets(user.getId(), session.getId(), 4, "1234567812345678");
+
+        assertThrows(NotEnoughTicketsException.class, () ->
+            orderService.buyTickets(user.getId(), session.getId(), 1, "1234567812345678")
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Pruebas para findUserOrders
     // -------------------------------------------------------------------------
@@ -197,6 +227,50 @@ public class OrderServiceIntegrationTest {
         assertThrows(IllegalArgumentException.class, () ->
             orderService.findUserOrders(user.getId(), -1, 10)
         );
+    }
+
+    /* Partición equivalente: Comprobación de que el historial devuelve primero la compra más reciente, aunque se haya guardado antes */
+    @Test
+    public void testFindUserOrdersReturnsMostRecentFirst() throws Exception {
+        Order recentOrder = orderDao.save(new Order(1, session, "1234567812345678", LocalDateTime.now().minusDays(1), user));
+        orderDao.save(new Order(1, session, "1234567812345678", LocalDateTime.now().minusDays(2), user));
+        flushAndClear();
+
+        Block<Order> ordersBlock = orderService.findUserOrders(user.getId(), 0, 10);
+
+        assertEquals(recentOrder.getId(), ordersBlock.getItems().get(0).getId());
+    }
+
+    /* Valor frontera: Comprobación de que la segunda página (última) de un historial de 3 compras con tamaño 2 contiene 1 elemento */
+    @Test
+    public void testFindUserOrdersSecondPageItemCount() throws Exception {
+        orderService.buyTickets(user.getId(), session.getId(), 1, "1234567812345678");
+        orderService.buyTickets(user.getId(), session.getId(), 1, "1234567812345678");
+        orderService.buyTickets(user.getId(), session.getId(), 1, "1234567812345678");
+
+        Block<Order> ordersBlock = orderService.findUserOrders(user.getId(), 1, 2);
+
+        assertEquals(1, ordersBlock.getItems().size());
+    }
+
+    /* Valor frontera: Comprobación de que la última página de un historial de 3 compras con tamaño 2 indica que no hay más elementos */
+    @Test
+    public void testFindUserOrdersLastPageHasNoMoreItems() throws Exception {
+        orderService.buyTickets(user.getId(), session.getId(), 1, "1234567812345678");
+        orderService.buyTickets(user.getId(), session.getId(), 1, "1234567812345678");
+        orderService.buyTickets(user.getId(), session.getId(), 1, "1234567812345678");
+
+        Block<Order> ordersBlock = orderService.findUserOrders(user.getId(), 1, 2);
+
+        assertFalse(ordersBlock.getExistMoreItems());
+    }
+
+    /* Partición equivalente: Comprobación de que un usuario existente sin compras obtiene un historial vacío */
+    @Test
+    public void testFindUserOrdersUserWithoutOrdersReturnsEmpty() throws Exception {
+        Block<Order> ordersBlock = orderService.findUserOrders(user.getId(), 0, 10);
+
+        assertTrue(ordersBlock.getItems().isEmpty());
     }
 
     // -------------------------------------------------------------------------
@@ -240,6 +314,18 @@ public class OrderServiceIntegrationTest {
     public void testDeliverTicketsNonExistentOrder() {
         assertThrows(InstanceNotFoundException.class, () ->
             orderService.deliverTickets(NON_EXISTENT_ID, "1234567812345678")
+        );
+    }
+
+    /* Valor frontera / Caso de error: Comprobación de que se lanza SessionAlreadyStartedException al entregar las entradas de una sesión que comenzó hace 1 segundo */
+    @Test
+    public void testDeliverTicketsSessionAlreadyStarted() {
+        Session pastSession = sessionDao.save(new Session(session.getMovie(), session.getRoom(),
+                LocalDateTime.now().minusSeconds(1), new BigDecimal("8.50")));
+        Order order = orderDao.save(new Order(2, pastSession, "1234567812345678", LocalDateTime.now().minusDays(1), user));
+
+        assertThrows(SessionAlreadyStartedException.class, () ->
+            orderService.deliverTickets(order.getId(), "1234567812345678")
         );
     }
 }

@@ -1,11 +1,14 @@
 package es.udc.paproject.backend.model.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +31,9 @@ public class UserServiceIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private BCryptPasswordEncoder passwordEncoder;
 
     private void flushAndClear() {
         entityManager.flush();
@@ -52,6 +58,47 @@ public class UserServiceIntegrationTest {
         User loggedUser = userService.login("john", "password");
 
         assertEquals(user.getId(), loggedUser.getId());
+    }
+
+    /* Partición equivalente: Comprobación de que un usuario registrado sin rol queda guardado en la BD con el rol USER */
+    @Test
+    public void testSignUpWithoutRoleStoresUserRole() throws Exception {
+        User user = createTestUser("john");
+        userService.signUp(user);
+        flushAndClear();
+
+        assertEquals(User.RoleType.USER, userService.loginFromId(user.getId()).getRole());
+    }
+
+    /* Partición equivalente / Caso de error: Comprobación de que un usuario que llega con rol CLERK queda guardado en la BD con el rol USER */
+    @Test
+    public void testSignUpWithClerkRoleStoresUserRole() throws Exception {
+        User user = createTestUser("john");
+        user.setRole(User.RoleType.CLERK);
+        userService.signUp(user);
+        flushAndClear();
+
+        assertEquals(User.RoleType.USER, userService.loginFromId(user.getId()).getRole());
+    }
+
+    /* Partición equivalente: Comprobación de que la contraseña almacenada en la BD no es la contraseña en claro */
+    @Test
+    public void testSignUpDoesNotStorePlainPassword() throws Exception {
+        User user = createTestUser("john");
+        userService.signUp(user);
+        flushAndClear();
+
+        assertNotEquals("password", userService.loginFromId(user.getId()).getPassword());
+    }
+
+    /* Partición equivalente: Comprobación de que la contraseña almacenada en la BD es el cifrado BCrypt de la original */
+    @Test
+    public void testSignUpStoresEncryptedPassword() throws Exception {
+        User user = createTestUser("john");
+        userService.signUp(user);
+        flushAndClear();
+
+        assertTrue(passwordEncoder.matches("password", userService.loginFromId(user.getId()).getPassword()));
     }
 
     /* Caso de error / Duplicados: Comprobación de que no se permite registrar dos usuarios con el mismo userName */
@@ -83,6 +130,17 @@ public class UserServiceIntegrationTest {
     public void testLoginNonExistentUser() {
         assertThrows(IncorrectLoginException.class, () ->
             userService.login("nonexistent", "password")
+        );
+    }
+
+    /* Valor frontera / Caso de error: Comprobación de que login con contraseña vacía lanza IncorrectLoginException */
+    @Test
+    public void testLoginEmptyPassword() throws Exception {
+        User user = createTestUser("john");
+        userService.signUp(user);
+
+        assertThrows(IncorrectLoginException.class, () ->
+            userService.login("john", "")
         );
     }
 
@@ -159,5 +217,37 @@ public class UserServiceIntegrationTest {
         assertThrows(IncorrectPasswordException.class, () ->
             userService.changePassword(user.getId(), "wrongOldPassword", "newPassword")
         );
+    }
+
+    /* Caso de error / ID Inexistente: Comprobación de que changePassword en usuario inexistente lanza InstanceNotFoundException */
+    @Test
+    public void testChangePasswordNonExistentUser() {
+        assertThrows(InstanceNotFoundException.class, () ->
+            userService.changePassword(NON_EXISTENT_ID, "password", "newPassword")
+        );
+    }
+
+    /* Partición equivalente / Caso de error: Comprobación de que, tras cambiar la contraseña, la antigua ya no permite iniciar sesión */
+    @Test
+    public void testChangePasswordOldPasswordNoLongerValid() throws Exception {
+        User user = createTestUser("john");
+        userService.signUp(user);
+        userService.changePassword(user.getId(), "password", "newPassword");
+        flushAndClear();
+
+        assertThrows(IncorrectLoginException.class, () ->
+            userService.login("john", "password")
+        );
+    }
+
+    /* Partición equivalente: Comprobación de que la nueva contraseña también se almacena cifrada en la BD */
+    @Test
+    public void testChangePasswordStoresEncryptedNewPassword() throws Exception {
+        User user = createTestUser("john");
+        userService.signUp(user);
+        userService.changePassword(user.getId(), "password", "newPassword");
+        flushAndClear();
+
+        assertNotEquals("newPassword", userService.loginFromId(user.getId()).getPassword());
     }
 }
