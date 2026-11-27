@@ -2,6 +2,7 @@ package es.udc.paproject.backend.model.entities;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import net.jqwik.api.Example;
 import net.jqwik.api.ForAll;
@@ -38,8 +39,8 @@ public class RoomTest {
     public void setNameUpdatesName(
             @ForAll @StringLength(min = 1, max = 50) String name) {
 
-        // El valor inicial vacío garantiza que el dato generado sustituye el nombre
-        Room room = new Room("", 100);
+        // La sala sin nombre (null) garantiza que el dato generado sustituye el nombre
+        Room room = new Room();
         room.setName(name);
 
         assertEquals(name, room.getName());
@@ -73,5 +74,20 @@ public class RoomTest {
         room.setId(id);
 
         assertEquals(id, room.getId());
+    }
+
+    // Partición inválida (falla, issue #2): capacidad entre -100 y 0, incluido el valor frontera 0
+    @Property
+    public void roomWithNonPositiveCapacityIsRejected(
+            @ForAll @IntRange(min = -100, max = 0) int capacity) {
+
+        assertThrows(IllegalArgumentException.class, () -> new Room("name", capacity));
+    }
+
+    // Partición inválida (falla, issue #3): nombre vacío, valor frontera de longitud 0
+    @Example
+    public void roomWithEmptyNameIsRejected() {
+
+        assertThrows(IllegalArgumentException.class, () -> new Room("", 100));
     }
 }
