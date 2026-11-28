@@ -63,13 +63,14 @@ public class SessionTest {
         assertEquals(capacity, session.getFreeSeats());
     }
 
-    // Valor frontera: una sala sin plazas libres deja cero plazas en la sesión
+    // Valor frontera: la capacidad mínima válida (1) deja una plaza libre en la sesión
+    // (una capacidad 0 es inválida, ver issue #2)
     @Example
-    public void constructorInitializesZeroFreeSeatsForZeroCapacity() {
-        Session session = new Session(new Movie(), new Room("room", 0),
+    public void constructorInitializesFreeSeatsForMinimumCapacity() {
+        Session session = new Session(new Movie(), new Room("room", 1),
                 LocalDateTime.now().plusDays(1), BigDecimal.TEN);
 
-        assertEquals(0, session.getFreeSeats());
+        assertEquals(1, session.getFreeSeats());
     }
 
     // Datos aleatorios: fecha y nanosegundos distintos de cero
