@@ -180,7 +180,7 @@
                          un JVM hijo al que engancharse. Si vais a medir cobertura o
                          mutación, comentad o poned forkCount>=1 (dejadlo así para el
                          resto del desarrollo si os interesa el motivo original). -->
-                    <forkCount>0</forkCount>
+                    <forkCount>1</forkCount>
                 </configuration>
             </plugin>
 

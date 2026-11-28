@@ -2,16 +2,32 @@
 
 ## Ejecución
 
-- Comando: `mvn test jacoco:report "-Dmaven.test.failure.ignore=true"`.
-- JaCoCo: `0.8.14`; Surefire usa `forkCount=1`.
+- Comando: `mvn clean test jacoco:report "-Dmaven.test.failure.ignore=true"`, con MySQL en marcha.
+- JaCoCo: `0.8.14`; Surefire usa `forkCount=1` en el `pom.xml` (con `forkCount=0` JaCoCo no puede engancharse a los tests).
 - El informe analiza las 51 clases de producción del backend.
 - HTML: `target/site/jacoco/index.html`; XML: `target/site/jacoco/jacoco.xml`.
 - El fichero de ejecución se configura como `target/jacoco.exec` y `append=false`, para que cada ejecución mida únicamente la suite actual.
 
-Se ejecutaron 285 tests: 2 fallos, 1 error y 0 omitidos. El parámetro `maven.test.failure.ignore` permite llegar a la generación del informe, pero **`BUILD SUCCESS` no significa que la suite esté verde**:
+**Nota de entorno (Java 25).** El proyecto está pensado para Java 21. Con un JDK 25, el Byte Buddy 1.14.19 que trae Spring Boot 3.3.8 no puede instrumentar `BCryptPasswordEncoder`, y los 21 tests de `UserServiceImplTest` dan error de Mockito (`Mockito cannot mock this class`) aunque el código esté bien. Pasa igual con `forkCount=0` y sin JaCoCo, así que no lo causa la medición. Con JDK 25 hay que ejecutar con la variable `JAVA_TOOL_OPTIONS=-Dnet.bytebuddy.experimental=true`; con JDK 21 no hace falta.
 
-- `OrderTest.orderWithNonPositiveUnitsIsRejected` y `OrderServiceIntegrationTest.testBuyTicketsWithNonPositiveTickets`: no se lanza la excepción esperada para unidades no positivas; discrepancia ya documentada en [#1](https://github.com/Pablomou21/VVS/issues/1).
-- `OrderControllerIntegrationTest.testFindUserOrdersNegativePageReturnsBadRequest`: la página negativa llega a Spring Data y produce `IllegalArgumentException` en vez de la respuesta esperada; discrepancia ya documentada en [#4](https://github.com/Pablomou21/VVS/issues/4).
+Se ejecutaron 450 tests: 11 fallos, 1 error y 0 omitidos. El parámetro `maven.test.failure.ignore` permite llegar a la generación del informe, pero **`BUILD SUCCESS` no significa que la suite esté verde**. Todos los fallos son tests que detectan bugs ya reportados:
+
+| Test que falla | Issue |
+|---|---|
+| `OrderTest.orderWithNonPositiveUnitsIsRejected` | [#1](https://github.com/Pablomou21/VVS/issues/1) |
+| `RoomTest.roomWithNonPositiveCapacityIsRejected` | [#2](https://github.com/Pablomou21/VVS/issues/2) |
+| `RoomTest.roomWithEmptyNameIsRejected` | [#3](https://github.com/Pablomou21/VVS/issues/3) |
+| `OrderControllerIntegrationTest.testFindUserOrdersNegativePageReturnsBadRequest` (error) | [#4](https://github.com/Pablomou21/VVS/issues/4) |
+| `OrderServiceImplTest.buyTicketsWithZeroTicketsIsRejected` y `buyTicketsWithNegativeTicketsIsRejected` | [#13](https://github.com/Pablomou21/VVS/issues/13) |
+| `OrderServiceIntegrationTest.testBuyTicketsWithNonPositiveTickets` y `testBuyTicketsWithZeroTickets` | [#13](https://github.com/Pablomou21/VVS/issues/13) |
+| `UserControllerIntegrationTest.testLoginFromServiceTokenWithoutTokenReturnsUnauthorized` | [#14](https://github.com/Pablomou21/VVS/issues/14) |
+| `MovieServiceIntegrationTest.testViewBillboardExcludesSessionAtStartOfNextDay` | [#16](https://github.com/Pablomou21/VVS/issues/16) |
+| `MovieTest.movieWithNonPositiveDurationIsRejected` | [#21](https://github.com/Pablomou21/VVS/issues/21) |
+| `MovieTest.movieWithEmptyTitleIsRejected` | [#22](https://github.com/Pablomou21/VVS/issues/22) |
+
+## Evolución respecto a la medición anterior
+
+La medición anterior (5-nov) ejecutaba 285 tests; la actual, 450. Los 165 tests nuevos (servicios con Mockito, integración de servicios y REST, rendimiento JETM, `MovieTest`, `UserTest` y los casos inválidos de `RoomTest`) **no cambian ninguna cifra de cobertura**: recorren código que ya estaba cubierto. Su valor está en lo que comprueban, no en las líneas que añaden: han destapado los bugs #13, #14, #16, #21 y #22. Los huecos que quedan son los mismos que antes y se detallan abajo; ninguno de los tests nuevos los ataca.
 
 ## Resultado global
 
@@ -64,6 +80,6 @@ Las implementaciones proxy de Spring Data para los DAO se generan en ejecución 
 
 ## Justificación de cobertura inferior al 100 %
 
-El 87 % de líneas se explica principalmente por setters y constructores de DTO que no se invocan directamente, además del método de arranque y un constructor de excepción sin uso productivo. El 97,4 % de ramas se debe a la rama nula todavía no probada de `UserDto` y a la rama lógicamente inalcanzable de `MovieServiceImpl`. La cobertura no debe elevarse eliminando o debilitando tests existentes; los dos fallos y el error descritos arriba permanecen visibles en los informes de Surefire.
+El 87 % de líneas se explica principalmente por setters y constructores de DTO que no se invocan directamente, además del método de arranque y un constructor de excepción sin uso productivo. El 97,4 % de ramas se debe a la rama nula todavía no probada de `UserDto` y a la rama lógicamente inalcanzable de `MovieServiceImpl`. La cobertura no debe elevarse eliminando o debilitando tests existentes; los 11 fallos y el error descritos arriba permanecen visibles en los informes de Surefire.
 
 El resumen por responsable queda preparado en las secciones anteriores para compartirlo con cada compañero; no se ha enviado ningún mensaje fuera del repositorio.
