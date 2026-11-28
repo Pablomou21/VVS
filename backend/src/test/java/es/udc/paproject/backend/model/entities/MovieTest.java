@@ -1,5 +1,6 @@
 package es.udc.paproject.backend.model.entities;
 
+import net.jqwik.api.Example;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.IntRange;
@@ -7,6 +8,7 @@ import net.jqwik.api.constraints.LongRange;
 import net.jqwik.api.constraints.StringLength;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class MovieTest {
 
@@ -68,5 +70,22 @@ public class MovieTest {
         movie.setId(id);
 
         assertEquals(id, movie.getId());
+    }
+
+    // Partición inválida (falla): duración entre -100 y 0, incluido el valor frontera 0
+    @Property
+    public void movieWithNonPositiveDurationIsRejected(
+            @ForAll @IntRange(min = -100, max = 0) int duration) {
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new Movie("title", "summary", (short) duration));
+    }
+
+    // Partición inválida (falla): título vacío, valor frontera de longitud 0
+    @Example
+    public void movieWithEmptyTitleIsRejected() {
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new Movie("", "summary", (short) 120));
     }
 }
